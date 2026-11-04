@@ -1,0 +1,22 @@
+[project]
+name = "hr-minds"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "Srijan Kumar", email = "srijan.kumar.cs@gmail.com" }]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.162.0",
+    "pydantic-settings>=2.16.2",
+    "python-dotenv>=1.2.4",
+]
+
+[project.scripts]
+hr-minds = "hr_minds:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.fastapi]
+entrypoint = "hr_minds.main:app"

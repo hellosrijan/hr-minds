@@ -1,0 +1,26 @@
+# Project Tasks: HR Minds (Agentic RAG)
+
+- [x] 1. Project Setup
+  - Description: Initialize environment variables, database connections, and infrastructure for local development and documentation.
+  - Subtasks:
+    - [x] Create and configure `.env` file with required secrets and environment variables
+    - [x] Configure `config.py` with Pydantic settings (auto-assembled `DATABASE_URL` via `${VAR}` interpolation)
+    - [x] Configure `docker-compose.yml` for PostgreSQL (credentials & port read from `.env`)
+    - [x] Set up database connection (SQLAlchemy + async driver)
+    - [x] Document setup instructions, run commands, and architecture in `README.md`
+
+- [ ] 2. Auth
+  - Description: Implement secure user authentication mechanisms.
+  - Subtasks:
+    - [ ] Implement user registration & secure password hashing (bcrypt)
+    - [ ] Implement login endpoint returning JWT access/refresh tokens
+    - [ ] Implement logout endpoint (token invalidation / blacklist strategy)
+    - [ ] Implement dependency for current authenticated user (`get_current_user`)
+
+- [ ] 3. Media Upload
+  - Description: Implement secure file storage handling for resumes and documents.
+  - Subtasks:
+    - [ ] Create media upload router and validation schemas (PDF/Docx validation)
+    - [ ] Configure AWS S3 client (boto3 / aioboto3) and storage adapter
+    - [ ] Implement endpoint to upload resume files directly to S3 and store file metadata in DB
+    - [ ] Implement file retrieval / presigned URL generation for secure access
