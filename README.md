@@ -9,7 +9,6 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
 [![uv](https://img.shields.io/badge/uv-Package%20Manager-de5fe9?style=for-the-badge&logo=astral&logoColor=white)](https://github.com/astral-sh/uv)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 *A modular HR platform built with FastAPI and PostgreSQL.*
 
@@ -70,7 +69,7 @@ hr-minds/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/hr-minds.git
+git clone https://github.com/hellosrijan/hr-minds.git
 cd hr-minds
 ```
 
@@ -148,9 +147,3 @@ All settings are read from `.env` (see `.env.example`).
 | `OPENAI_API_KEY` | *optional* | OpenAI API key |
 
 > ⚠️ Never commit your `.env` file. Use `.env.example` for shared templates.
-
----
-
-## 📜 License
-
-Distributed under the MIT License.
