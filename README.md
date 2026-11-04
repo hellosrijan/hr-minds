@@ -10,7 +10,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
 [![uv](https://img.shields.io/badge/uv-Package%20Manager-de5fe9?style=for-the-badge&logo=astral&logoColor=white)](https://github.com/astral-sh/uv)
 
-*A modular HR platform built with FastAPI and PostgreSQL.*
+*A modular HR platform built with FastAPI, SQLAlchemy (Async), Alembic, and PostgreSQL.*
 
 </div>
 
@@ -18,26 +18,26 @@
 
 ## ✨ Features
 
-- **⚡ FastAPI backend** with auto-generated interactive API docs
-  - Swagger UI at `/docs`
-  - ReDoc at `/redoc`
-  - OpenAPI schema at `/openapi.json`
-- **⚙️ Type-safe settings** using Pydantic v2 (`pydantic-settings`), loaded from `.env`
-- **🔗 Auto-assembled database URL**: `DATABASE_URL` is built from `${POSTGRES_*}` variables using `${VAR}` interpolation, so credentials are defined once
+- **⚡ FastAPI backend** with auto-generated interactive API docs (`/docs` & `/redoc`)
+- **⚙️ Type-safe settings** using Pydantic v2 (`pydantic-settings`) with `.env` interpolation
 - **🐘 PostgreSQL 16 in Docker** via Docker Compose, configured from the same `.env` file
+- **🔌 Asynchronous SQLAlchemy & Alembic** for robust ORM operations and database migrations
 - **📦 Fast dependency management** with `uv`
 
 ---
 
-## 🛠️ Tech Stack
+## 🏗️ Database Architecture & Customizations
 
-| Layer | Technology |
-| :--- | :--- |
-| Web framework | [FastAPI](https://fastapi.tiangolo.com/) |
-| Settings | [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) + [python-dotenv](https://github.com/theskumar/python-dotenv) |
-| Database | PostgreSQL 16 (async driver: `asyncpg`) |
-| Package manager | [uv](https://github.com/astral-sh/uv) |
-| Containers | Docker & Docker Compose |
+Our ORM setup (`src/hr_minds/settings/db.py`) includes standard production patterns:
+
+1. **Auto-Generated Table Names (`snake_case`)**:
+   - Models automatically derive their table names in lowercase snake_case from the class name (e.g., `User` $\rightarrow$ `user`, `SelectedCandidate` $\rightarrow$ `selected_candidate`).
+2. **`TimestampMixin`**:
+   - Reusable columns included across models: `id` (primary key), `created` (timestamp on insert), and `modified` (timestamp on insert & update).
+3. **Predictable Naming Conventions**:
+   - Custom `MetaData` naming conventions for constraints (`ix`, `uq`, `ck`, `fk`, `pk`) to ensure seamless database migrations with Alembic across different environments.
+4. **Async Session Management (`get_db`)**:
+   - Provides an async session dependency yielding `AsyncSession` per request.
 
 ---
 
@@ -48,9 +48,15 @@ hr-minds/
 ├── src/
 │   └── hr_minds/
 │       ├── main.py              # FastAPI app entrypoint
-│       └── settings/
-│           └── config.py        # Environment-based settings
+│       ├── settings/
+│       │   ├── config.py        # Pydantic BaseSettings config
+│       │   └── db.py            # Async engine, Base, TimestampMixin, get_db
+│       ├── auth/
+│       │   └── models.py        # User ORM model
+│       └── migrations/          # Alembic database migrations
+│           └── env.py           # [Custom] Alembic environment & metadata setup
 ├── docker-compose.yml           # PostgreSQL service
+├── alembic.ini                  # Alembic configuration
 ├── .env.example                 # Environment variable template
 ├── pyproject.toml               # Project metadata & dependencies
 └── README.md
@@ -66,20 +72,17 @@ hr-minds/
 - [uv](https://github.com/astral-sh/uv) (`pip install uv`)
 - [Docker & Docker Compose](https://www.docker.com/)
 
-### 1. Clone the repository
+### 1. Clone & Configure Environment
 
 ```bash
 git clone https://github.com/hellosrijan/hr-minds.git
 cd hr-minds
-```
 
-### 2. Configure environment variables
-
-```bash
+# Copy environment template
 cp .env.example .env
 ```
 
-Edit `.env` and set your own values. The database settings are used by both Docker Compose and the app:
+Edit `.env` and set your credentials:
 
 ```env
 POSTGRES_USER=postgres
@@ -90,16 +93,28 @@ POSTGRES_DB=hr_minds
 DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
 ```
 
-### 3. Start PostgreSQL
+### 2. Start PostgreSQL
 
 ```bash
 docker compose up -d
 ```
 
-### 4. Install dependencies
+### 3. Install Dependencies
 
 ```bash
 uv sync
+```
+
+### 4. Run Database Migrations
+
+For detailed migration workflows, commands, and configuration notes, see the [Migrations README](src/hr_minds/migrations/README).
+
+```bash
+# Generate a new migration (when models change)
+uv run alembic revision --autogenerate -m "create user table"
+
+# Apply migrations to the database
+uv run alembic upgrade head
 ```
 
 ### 5. Run the API
@@ -118,28 +133,28 @@ The API will be available at:
 
 ---
 
-## ⚙️ Configuration
+## ⚙️ Configuration Reference
 
-All settings are read from `.env` (see `.env.example`).
+All settings are loaded from `.env`:
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `PROJECT_NAME` | `HR Minds API` | Application name shown in the docs |
-| `VERSION` | `1.0.0` | API version shown in the docs |
-| `DESCRIPTION` | *(see config)* | API description shown in the docs |
-| `DEBUG` | `false` | Enables debug mode |
+| `PROJECT_NAME` | `HR Minds API` | Application name in docs |
+| `VERSION` | `1.0.0` | API version |
+| `DESCRIPTION` | *(see config)* | API description |
+| `DEBUG` | `false` | Enables debug mode & SQL query logging |
 | `DOCS_URL` | `/docs` | Swagger UI path |
 | `REDOC_URL` | `/redoc` | ReDoc path |
 | `OPENAPI_URL` | `/openapi.json` | OpenAPI schema path |
-| `POSTGRES_USER` | `postgres` | Database user (also used by Docker Compose) |
-| `POSTGRES_PASSWORD` | *required* | Database password (also used by Docker Compose) |
+| `POSTGRES_USER` | `postgres` | Database user (Docker & App) |
+| `POSTGRES_PASSWORD` | *required* | Database password (Docker & App) |
 | `POSTGRES_HOST` | `localhost` | Database host |
-| `POSTGRES_PORT` | `5432` | Database port (also used by Docker Compose) |
-| `POSTGRES_DB` | `hr_minds` | Database name (also used by Docker Compose) |
+| `POSTGRES_PORT` | `5432` | Database port |
+| `POSTGRES_DB` | `hr_minds` | Database name |
 | `DATABASE_URL` | *required* | Full async PostgreSQL connection string |
-| `SECRET_KEY` | *required* | Secret key for signing tokens |
+| `SECRET_KEY` | *required* | JWT token secret key |
 | `ALGORITHM` | `HS256` | Token signing algorithm |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Token lifetime in minutes |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Token lifetime |
 | `AWS_ACCESS_KEY_ID` | *optional* | AWS access key |
 | `AWS_SECRET_ACCESS_KEY` | *optional* | AWS secret key |
 | `AWS_S3_BUCKET_NAME` | *optional* | S3 bucket for uploads |
