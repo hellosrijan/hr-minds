@@ -8,7 +8,7 @@ from hr_minds.auth.models import AccessToken, User
 from hr_minds.settings.db import get_db
 
 # tokenUrl must match the OAuth2 token endpoint. Swagger's Authorize button uses it.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
 
 async def get_token_payload(
