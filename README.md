@@ -26,6 +26,20 @@
 
 ---
 
+## 📚 Documentation & Wiki
+
+For detailed guides, architecture notes, and API references, please check our [Wiki Directory](./wiki):
+
+- 🏠 **[Home](./wiki/Home.md)**: Overview & documentation index
+- 🏗️ **[Architecture](./wiki/Architecture.md)**: Project structure & design principles
+- 🔐 **[Authentication & RBAC](./wiki/Authentication.md)**: Argon2 hashing, JWT sessions, and `require()`
+- 🔌 **[API Endpoints](./wiki/API-Endpoints.md)**: Complete list of `/api/v1` endpoints
+- 🐘 **[Database & Migrations](./wiki/Database-Migrations.md)**: Alembic setup and commands
+- 🚀 **[Development Setup](./wiki/Development-Setup.md)**: Local installation guide
+
+
+---
+
 ## 🏗️ Database Architecture & Customizations
 
 Our ORM setup (`src/hr_minds/settings/db.py`) includes standard production patterns:
