@@ -32,6 +32,6 @@ You maintain `wiki/`, which a GitHub Action publishes to this repo's GitHub wiki
    git add wiki/
    git diff --cached --quiet || git commit -m "docs(wiki): <what changed>"
    ```
-   Don't stage anything outside `wiki/`, don't push, don't amend.
+   Don't stage anything outside `wiki/`, don't push, don't amend. No `Co-Authored-By` or other Claude attribution in the message.
 
 5. Reply with one line per page changed and why.
