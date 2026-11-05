@@ -17,18 +17,27 @@
     - [x] Configure Alembic `env.py` for model auto-discovery and dynamic database URL resolution
     - [x] Create initial User model (`auth/models.py`) and document migration workflow in `migrations/README`
 
-- [ ] 3. Auth
+- [x] 3. Auth
   - Description: Implement secure user authentication mechanisms.
   - Subtasks:
-    - [ ] Implement user registration & secure password hashing (bcrypt)
-    - [ ] Implement login endpoint returning JWT access/refresh tokens
-    - [ ] Implement logout endpoint (token invalidation / blacklist strategy)
-    - [ ] Implement dependency for current authenticated user (`get_current_user`)
+    - [x] Implement user registration & secure password hashing (Argon2 via pwdlib)
+    - [x] Implement login endpoint returning JWT access/refresh tokens (`POST /api/v1/auth/token`)
+    - [x] Implement logout endpoint (session revocation via `AccessToken` table)
+    - [x] Implement dependency for current authenticated user (`get_current_user`) and RBAC `require()`
 
-- [ ] 4. Media Upload
-  - Description: Implement secure file storage handling for resumes and documents.
+- [ ] 4. Media Upload (Local Storage)
+  - Description: Implement file storage handling for resumes and documents using local disk storage (omitting AWS S3 for now).
   - Subtasks:
     - [ ] Create media upload router and validation schemas (PDF/Docx validation)
-    - [ ] Configure AWS S3 client (boto3 / aioboto3) and storage adapter
-    - [ ] Implement endpoint to upload resume files directly to S3 and store file metadata in DB
-    - [ ] Implement file retrieval / presigned URL generation for secure access
+    - [ ] Configure local storage adapter (saving files to a local `uploads/` directory)
+    - [ ] Implement endpoint to upload resume files and store file metadata in PostgreSQL DB
+    - [ ] Implement file retrieval / download endpoint
+
+- [ ] 5. Recruitment Module (Agentic RAG Resume Filtering)
+  - Description: Implement recruitment pipelines where uploaded resumes from the media module are automatically processed, parsed, and filtered against HR job descriptions using Agentic RAG.
+  - Subtasks:
+    - [ ] Create Job Description (JD) management model and endpoints (create/list JDs)
+    - [ ] Implement resume text parsing service (PDF/Docx text extraction)
+    - [ ] Implement text chunking, embedding generation, and vector retrieval pipeline
+    - [ ] Build Agentic RAG evaluation/filtering engine to match candidates against JDs and score resume relevance
+    - [ ] Create recruitment matching endpoints to query candidates and view AI evaluation summaries
