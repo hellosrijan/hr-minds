@@ -55,7 +55,11 @@ Any table holding org data (media, recruitment, …) needs an `org_id` column, a
 
 A non-owner can only grant, edit, delete or assign roles whose permissions they hold themselves, and can only manage members whose current role they could have granted. Nobody can change the owner's membership or their own. Violations return 403.
 
-Tests for isolation, invitations and escalation: `tests/test_rbac.py`.
+### Deleting an account
+
+`DELETE /auth/me` (password required) deletes the user; foreign keys do the rest. Memberships in other organizations are removed without touching those organizations. The user's own organization is deleted with them, so the request is refused (409) while it has other members; there is no ownership transfer yet. Invitations they sent survive (`invitation.invited_by_id` is `ON DELETE SET NULL`).
+
+Tests: `tests/auth/router/test_auth.py` and `tests/auth/router/test_rbac.py`.
 
 ## Errors
 

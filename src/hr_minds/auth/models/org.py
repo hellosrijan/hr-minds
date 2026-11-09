@@ -109,7 +109,10 @@ class Invitation(Base, TimestampMixin):
         ForeignKey("organization.id", ondelete="CASCADE"), index=True
     )
     role_id: Mapped[int] = mapped_column(ForeignKey("role.id", ondelete="CASCADE"))
-    invited_by_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"))
+    # SET NULL: an invitation stays valid if the person who sent it deletes their account.
+    invited_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+    )
     email: Mapped[str] = mapped_column(String(255))
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -1,7 +1,13 @@
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from hr_minds.auth.exceptions import EmailAlreadyRegistered, InactiveUser, InvalidCredentials
+from hr_minds.auth.exceptions import (
+    EmailAlreadyRegistered,
+    InactiveUser,
+    InvalidCredentials,
+    OwnedOrganizationHasMembers,
+)
 from hr_minds.auth.models import Membership, Organization, User
 from hr_minds.auth.schemas import UserRegister
 
@@ -46,3 +52,29 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> User
     if not user.is_active:
         raise InactiveUser  # checked after the password, so it reveals nothing to strangers
     return user
+
+
+async def delete_user(db: AsyncSession, user: User, password: str) -> None:
+    """
+    Delete the account. The database cascades the rest:
+    - memberships in other organizations are removed; those organizations are untouched
+    - the user's own organization (roles, invitations) is deleted with them
+    - sessions are deleted; invitations they sent stay valid (invited_by_id -> NULL)
+
+    Raises InvalidCredentials on a wrong password, and OwnedOrganizationHasMembers
+    while anyone else is still in the user's own organization.
+    """
+    if not user.check_password(password):
+        raise InvalidCredentials
+
+    others = await db.scalar(
+        select(func.count())
+        .select_from(Membership)
+        .join(Organization, Organization.id == Membership.org_id)
+        .where(Organization.owner_id == user.id, Membership.user_id != user.id)
+    )
+    if others:
+        raise OwnedOrganizationHasMembers()
+
+    await db.delete(user)
+    await db.commit()

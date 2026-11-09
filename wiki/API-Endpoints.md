@@ -165,6 +165,34 @@ The logged-in user.
 
 **Errors:** `401 Not authenticated` (no token) · `401 Invalid or expired token` · `401 Session is revoked or expired` · `401 User is inactive or no longer exists`
 
+### `DELETE /auth/me`
+
+Permanently delete your account. Confirm with your password in the body.
+
+**Requires:** Bearer token.
+
+```json
+{ "password": "password123" }
+```
+
+**Response:** `204 No Content`. What happens to related data:
+
+| Data | Result |
+| :--- | :--- |
+| Your memberships in other organizations | Removed. Those organizations, their roles and other members are untouched |
+| Your own organization | Deleted, with its roles and pending invitations |
+| Invitations you sent to other organizations | Stay valid |
+| Your sessions | Deleted; all your tokens stop working |
+
+The email can be registered again afterwards.
+
+**Errors**
+
+| Status | `detail` | When |
+| :--- | :--- | :--- |
+| `403` | `Incorrect password` | Wrong password |
+| `409` | `Your organization still has members; remove them before deleting your account` | Others are still in your own organization; [remove them](#delete-membersuser_id) first |
+
 ---
 
 ## Features

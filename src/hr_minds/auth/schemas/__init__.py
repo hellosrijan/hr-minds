@@ -1,4 +1,4 @@
-from hr_minds.auth.schemas.auth import TokenResponse, UserRead, UserRegister
+from hr_minds.auth.schemas.auth import AccountDelete, TokenResponse, UserRead, UserRegister
 from hr_minds.auth.schemas.rbac import (
     FeatureRead,
     InvitationCreate,
@@ -14,6 +14,7 @@ from hr_minds.auth.schemas.rbac import (
 )
 
 __all__ = [
+    "AccountDelete",
     "FeatureRead",
     "InvitationCreate",
     "InvitationRead",

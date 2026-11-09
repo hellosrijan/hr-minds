@@ -12,6 +12,12 @@ class UserRegister(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class AccountDelete(BaseModel):
+    """Request body for DELETE /auth/me. The password confirms it's really the account holder."""
+
+    password: str
+
+
 class TokenResponse(BaseModel):
     """Response body for a successful login."""
 

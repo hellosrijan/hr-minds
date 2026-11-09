@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hr_minds.auth.dependencies import get_current_user, get_token_payload
 from hr_minds.auth.exceptions import EmailAlreadyRegistered, InactiveUser, InvalidCredentials
 from hr_minds.auth.models import AccessToken, User
-from hr_minds.auth.schemas import TokenResponse, UserRead, UserRegister
-from hr_minds.auth.services import authenticate_user, register_user
+from hr_minds.auth.schemas import AccountDelete, TokenResponse, UserRead, UserRegister
+from hr_minds.auth.services import authenticate_user, delete_user, register_user
 from hr_minds.settings.db import get_db
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -89,3 +89,26 @@ async def me(user: User = Depends(get_current_user)):
     - **Authorization**: Requires Bearer token header.
     """
     return user
+
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT, summary="Delete My Account")
+async def delete_me(
+    data: AccountDelete,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """
+    Permanently delete the current user's account. Confirm with the account password.
+
+    - Memberships in other organizations are removed; those organizations stay as they are.
+    - Your own organization is deleted with you, so it must have no other members.
+
+    Raises:
+    - **403 Forbidden**: Wrong password.
+    - **409 Conflict**: Your organization still has other members.
+    """
+    try:
+        await delete_user(db, user, data.password)
+    except InvalidCredentials:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Incorrect password")

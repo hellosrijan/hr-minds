@@ -89,6 +89,11 @@ class PrivilegeEscalation(RBACError):
     detail = "You can't grant or manage permissions you don't have"
 
 
+class OwnedOrganizationHasMembers(RBACError):
+    status_code = status.HTTP_409_CONFLICT
+    detail = "Your organization still has members; remove them before deleting your account"
+
+
 class CannotModifyMember(RBACError):
     status_code = status.HTTP_403_FORBIDDEN
     detail = "The owner and your own membership can't be changed"
