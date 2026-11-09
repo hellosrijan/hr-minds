@@ -26,3 +26,13 @@ build-backend = "uv_build"
 
 [tool.fastapi]
 entrypoint = "hr_minds.main:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Test files mirror src/hr_minds, so names repeat (router/test_auth.py, services/test_auth.py).
+addopts = "--import-mode=importlib"

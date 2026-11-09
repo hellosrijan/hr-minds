@@ -4,5 +4,5 @@
 - [Development Setup](Development-Setup)
 - [Architecture](Architecture)
 - [Authentication](Authentication)
-- [API Endpoints](API-Endpoints)
+- [API Reference](API-Endpoints)
 - [Database Migrations](Database-Migrations)

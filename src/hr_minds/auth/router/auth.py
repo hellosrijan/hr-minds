@@ -2,28 +2,26 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from hr_minds.auth.dependencies import get_current_user, get_token_payload, require
+from hr_minds.auth.dependencies import get_current_user, get_token_payload
 from hr_minds.auth.exceptions import EmailAlreadyRegistered, InactiveUser, InvalidCredentials
 from hr_minds.auth.models import AccessToken, User
 from hr_minds.auth.schemas import TokenResponse, UserRead, UserRegister
-from hr_minds.auth.services import authenticate_user
+from hr_minds.auth.services import authenticate_user, register_user
 from hr_minds.settings.db import get_db
-from hr_minds.settings.features import FeatureSlug
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-# No public sign-up: only superusers or roles granted auth:create can add accounts.
 @router.post(
     "/register",
     response_model=UserRead,
     status_code=status.HTTP_201_CREATED,
     summary="Register New User",
-    dependencies=[Depends(require(FeatureSlug.AUTH, "create"))],
 )
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     """
-    Register a new user account in the system. Requires the `auth:create` permission (or superuser).
+    Public sign-up. Creates the user and a personal organization they own.
+    To join someone else's organization, accept an invitation afterwards.
 
     - **email**: Valid and unique email address.
     - **first_name**: User's first name (1-100 chars).
@@ -31,12 +29,10 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     - **password**: Secure password (min 8 chars).
 
     Raises:
-    - **401 Unauthorized**: Missing or invalid Bearer token.
-    - **403 Forbidden**: Caller lacks the `auth:create` permission.
     - **409 Conflict**: If the email is already registered.
     """
     try:
-        return await User.register(db, data)
+        return await register_user(db, data)
     except EmailAlreadyRegistered:
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
 

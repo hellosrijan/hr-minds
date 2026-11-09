@@ -12,19 +12,22 @@ src/hr_minds/
 │   ├── logging.py          # setup_logging(): text to stdout, JSON to logs/app.log
 │   └── routers.py          # api_router (prefix /api/v1) — every module router mounts here
 ├── auth/                   # see [Authentication](Authentication)
-│   ├── router.py  dependencies.py  services.py  schemas.py  exceptions.py
-│   ├── cli.py              # create-superuser
+│   ├── router/  schemas/  services/   # each split into auth.py and rbac.py
+│   ├── dependencies.py     # get_current_user, org-scoped require()
+│   ├── exceptions.py
+│   ├── cli.py              # create-superuser, sync-features
 │   ├── tasks.py            # delete expired sessions
-│   └── models/             # User, AccessToken, Feature, Permission, Role
+│   └── models/             # user, token, rbac (Feature, Permission, Role), org (Organization, Membership, Invitation)
 ├── media/                  # placeholder (planned)
 └── migrations/             # Alembic (async)
+tests/                      # pytest, mirrors src/hr_minds (tests/auth/router/test_auth.py, ...)
 ```
 
 ## Routing
 
 `settings/routers.py` defines one `APIRouter(prefix="/api/v1")`. Each feature module exposes its own `router` with its own prefix (e.g. `/auth`), which is included there. `main.py` includes only `api_router`.
 
-To add a module: create `<module>/router.py`, include it in `settings/routers.py`, and add its slug to `FeatureSlug`/`FEATURES` in `settings/features.py` if it needs permissions.
+To add a module: create `<module>/router.py`, include it in `settings/routers.py`, add its slug to `FeatureSlug`/`FEATURES` in `settings/features.py` if it needs permissions, and run `sync-features`. Org data gets an `org_id` column; endpoints take the org from `require()` (the `X-Org-Id` header).
 
 ## Database base classes (`settings/db.py`)
 

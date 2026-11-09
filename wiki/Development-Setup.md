@@ -22,12 +22,28 @@ Swagger UI: http://127.0.0.1:8000/docs · ReDoc: http://127.0.0.1:8000/redoc
 
 ## First user
 
-There is no public sign-up. Create a superuser from the CLI (prompts for the password, min 8 chars):
+Sync the code-defined features into the database (rerun whenever `FEATURES` changes):
+
+```bash
+uv run python -m hr_minds.auth.cli sync-features
+```
+
+Then sign up with `POST /api/v1/auth/register` (public; creates your own organization). A superuser can also be created from the CLI (prompts for the password, min 8 chars):
 
 ```bash
 uv run python -m hr_minds.auth.cli create-superuser \
     --email you@example.com --first-name First --last-name Last
 ```
+
+## Tests
+
+```bash
+uv run pytest
+```
+
+Tests create and reuse an `hr_minds_test` database on the Postgres server in `DATABASE_URL`, rebuilding its tables for every test.
+
+`tests/` mirrors `src/hr_minds/`: tests for `auth/router/auth.py` live in `tests/auth/router/test_auth.py`, and so on. Shared fixtures (`db`, `client`, `signup`) are in `tests/conftest.py`. Files may share names because pytest runs with `--import-mode=importlib`.
 
 ## Scheduled cleanup
 
