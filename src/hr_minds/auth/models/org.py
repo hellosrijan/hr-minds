@@ -35,7 +35,7 @@ class Organization(Base, TimestampMixin):
     @staticmethod
     def new_public_id(name: str) -> str:
         """
-        "Srijan" -> "org_srijan_k3x9p2m7qa". Set once at creation; a later rename
+        "Apple" -> "org_apple_k3x9p2m7qa". Set once at creation; a later rename
         doesn't change it, so stored IDs keep working.
         """
         slug = re.sub(r"[^a-z0-9]+", "-", name.lower().replace("'", ""))
