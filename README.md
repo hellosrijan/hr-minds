@@ -32,8 +32,8 @@ For detailed guides, architecture notes, and API references, please check our [W
 
 - 🏠 **[Home](./wiki/Home.md)**: Overview & documentation index
 - 🏗️ **[Architecture](./wiki/Architecture.md)**: Project structure & design principles
-- 🔐 **[Authentication & RBAC](./wiki/Authentication.md)**: Argon2 hashing, JWT sessions, and `require()`
-- 🔌 **[API Endpoints](./wiki/API-Endpoints.md)**: Complete list of `/api/v1` endpoints
+- 🔐 **[Authentication & RBAC](./wiki/Authentication.md)**: Argon2 hashing, JWT sessions, organizations, custom roles, invitations
+- 🔌 **[API Reference](./wiki/API-Endpoints.md)**: Every `/api/v1` endpoint with request/response examples and errors
 - 🐘 **[Database & Migrations](./wiki/Database-Migrations.md)**: Alembic setup and commands
 - 🚀 **[Development Setup](./wiki/Development-Setup.md)**: Local installation guide
 
@@ -66,9 +66,13 @@ hr-minds/
 │       │   ├── config.py        # Pydantic BaseSettings config
 │       │   └── db.py            # Async engine, Base, TimestampMixin, get_db
 │       ├── auth/
-│       │   └── models.py        # User ORM model
+│       │   ├── models/          # User, AccessToken, RBAC and organization models
+│       │   ├── router/          # auth.py, rbac.py
+│       │   ├── schemas/         # auth.py, rbac.py
+│       │   └── services/        # auth.py, rbac.py
 │       └── migrations/          # Alembic database migrations
 │           └── env.py           # [Custom] Alembic environment & metadata setup
+├── tests/                       # pytest (uses an hr_minds_test database)
 ├── docker-compose.yml           # PostgreSQL service
 ├── alembic.ini                  # Alembic configuration
 ├── .env.example                 # Environment variable template
@@ -129,6 +133,9 @@ uv run alembic revision --autogenerate -m "create user table"
 
 # Apply migrations to the database
 uv run alembic upgrade head
+
+# Sync code-defined features/permissions (rerun when FEATURES changes)
+uv run python -m hr_minds.auth.cli sync-features
 ```
 
 ### 5. Run the API

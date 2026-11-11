@@ -10,8 +10,8 @@ HR management and Agentic RAG platform built with FastAPI, async SQLAlchemy, Ale
 | :--- | :--- |
 | [Development Setup](Development-Setup) | Install, configure `.env`, run the API locally |
 | [Architecture](Architecture) | Project layout, settings, database base classes, routing, logging |
-| [Authentication](Authentication) | Argon2 passwords, JWT sessions, logout, RBAC `require()` |
-| [API Endpoints](API-Endpoints) | Every `/api/v1` endpoint |
+| [Authentication](Authentication) | Argon2 passwords, JWT sessions, organizations, roles, invitations, `require()` |
+| [API Reference](API-Endpoints) | Every `/api/v1` endpoint with request/response examples, errors, `X-Org-Id`, and a curl walkthrough |
 | [Database Migrations](Database-Migrations) | Alembic workflow and commands |
 
 ## Module status
@@ -19,6 +19,7 @@ HR management and Agentic RAG platform built with FastAPI, async SQLAlchemy, Ale
 | Module | Status |
 | :--- | :--- |
 | Project setup, ORM & migrations | Done |
-| Auth (login, logout, RBAC) | Done |
+| Auth (login, logout) | Done |
+| Organizations & RBAC (roles, members, invitations) | Done |
 | Media upload (local storage) | Planned — `FeatureSlug.MEDIA` registered, no router yet |
 | Recruitment (Agentic RAG resume filtering) | Planned |

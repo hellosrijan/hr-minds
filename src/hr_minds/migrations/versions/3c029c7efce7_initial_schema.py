@@ -1,8 +1,8 @@
-"""create auth tables
+"""initial schema
 
-Revision ID: 08f2d5e83ed5
+Revision ID: 3c029c7efce7
 Revises: 
-Create Date: 2026-11-05 17:49:27.614662
+Create Date: 2026-11-09 23:38:39.792035
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '08f2d5e83ed5'
+revision: str = '3c029c7efce7'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -31,17 +31,6 @@ def upgrade() -> None:
     sa.Column('modified', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_feature')),
     sa.UniqueConstraint('slug', name=op.f('uq_feature_slug'))
-    )
-    op.create_table('role',
-    sa.Column('slug', sa.String(length=50), nullable=False),
-    sa.Column('name', sa.String(length=100), nullable=False),
-    sa.Column('description', sa.String(length=255), nullable=True),
-    sa.Column('is_system', sa.Boolean(), nullable=False),
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('created', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('modified', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_role')),
-    sa.UniqueConstraint('slug', name=op.f('uq_role_slug'))
     )
     op.create_table('user',
     sa.Column('email', sa.String(length=255), nullable=False),
@@ -69,6 +58,18 @@ def upgrade() -> None:
     op.create_index(op.f('ix_access_token_expires_at'), 'access_token', ['expires_at'], unique=False)
     op.create_index(op.f('ix_access_token_jti'), 'access_token', ['jti'], unique=True)
     op.create_index(op.f('ix_access_token_user_id'), 'access_token', ['user_id'], unique=False)
+    op.create_table('organization',
+    sa.Column('public_id', sa.String(length=50), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('owner_id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('created', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('modified', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['owner_id'], ['user.id'], name=op.f('fk_organization_owner_id_user'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_organization')),
+    sa.UniqueConstraint('public_id', name=op.f('uq_organization_public_id'))
+    )
+    op.create_index(op.f('ix_organization_owner_id'), 'organization', ['owner_id'], unique=False)
     op.create_table('permission',
     sa.Column('feature_id', sa.Integer(), nullable=False),
     sa.Column('action', sa.String(length=50), nullable=False),
@@ -79,13 +80,49 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_permission')),
     sa.UniqueConstraint('feature_id', 'action', name=op.f('uq_permission_feature_id'))
     )
-    op.create_table('user_role',
-    sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.Column('role_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['role_id'], ['role.id'], name=op.f('fk_user_role_role_id_role'), ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id'], name=op.f('fk_user_role_user_id_user'), ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('user_id', 'role_id', name=op.f('pk_user_role'))
+    op.create_table('role',
+    sa.Column('org_id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('description', sa.String(length=255), nullable=True),
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('created', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('modified', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_role_org_id_organization'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_role')),
+    sa.UniqueConstraint('org_id', 'name', name=op.f('uq_role_org_id'))
     )
+    op.create_table('invitation',
+    sa.Column('org_id', sa.Integer(), nullable=False),
+    sa.Column('role_id', sa.Integer(), nullable=False),
+    sa.Column('invited_by_id', sa.Integer(), nullable=True),
+    sa.Column('email', sa.String(length=255), nullable=False),
+    sa.Column('token_hash', sa.String(length=64), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('accepted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('created', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('modified', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['invited_by_id'], ['user.id'], name=op.f('fk_invitation_invited_by_id_user'), ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_invitation_org_id_organization'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['role_id'], ['role.id'], name=op.f('fk_invitation_role_id_role'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_invitation')),
+    sa.UniqueConstraint('token_hash', name=op.f('uq_invitation_token_hash'))
+    )
+    op.create_index(op.f('ix_invitation_org_id'), 'invitation', ['org_id'], unique=False)
+    op.create_table('membership',
+    sa.Column('org_id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('role_id', sa.Integer(), nullable=True),
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('created', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('modified', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_membership_org_id_organization'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['role_id'], ['role.id'], name=op.f('fk_membership_role_id_role'), ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id'], name=op.f('fk_membership_user_id_user'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_membership')),
+    sa.UniqueConstraint('org_id', 'user_id', name=op.f('uq_membership_org_id'))
+    )
+    op.create_index(op.f('ix_membership_user_id'), 'membership', ['user_id'], unique=False)
     op.create_table('role_permission',
     sa.Column('role_id', sa.Integer(), nullable=False),
     sa.Column('permission_id', sa.Integer(), nullable=False),
@@ -100,14 +137,19 @@ def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('role_permission')
-    op.drop_table('user_role')
+    op.drop_index(op.f('ix_membership_user_id'), table_name='membership')
+    op.drop_table('membership')
+    op.drop_index(op.f('ix_invitation_org_id'), table_name='invitation')
+    op.drop_table('invitation')
+    op.drop_table('role')
     op.drop_table('permission')
+    op.drop_index(op.f('ix_organization_owner_id'), table_name='organization')
+    op.drop_table('organization')
     op.drop_index(op.f('ix_access_token_user_id'), table_name='access_token')
     op.drop_index(op.f('ix_access_token_jti'), table_name='access_token')
     op.drop_index(op.f('ix_access_token_expires_at'), table_name='access_token')
     op.drop_table('access_token')
     op.drop_index(op.f('ix_user_email'), table_name='user')
     op.drop_table('user')
-    op.drop_table('role')
     op.drop_table('feature')
     # ### end Alembic commands ###

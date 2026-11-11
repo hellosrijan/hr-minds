@@ -25,6 +25,14 @@
     - [x] Implement logout endpoint (session revocation via `AccessToken` table)
     - [x] Implement dependency for current authenticated user (`get_current_user`) and RBAC `require()`
 
+- [x] 3a. Organizations & RBAC
+  - Description: Multi-tenant access control. Each user owns an org, invites others, and grants access through custom roles.
+  - Subtasks:
+    - [x] Organization, Membership (one role per member) and Invitation models + migration
+    - [x] Org-scoped `require()` (X-Org-Id header, defaults to own org; public ids `org_<name>_<random>`) and `sync-features` CLI
+    - [x] Role, member and invitation endpoints with privilege-escalation guards
+    - [x] Tests for isolation, invitations and escalation (`tests/test_rbac.py`)
+
 - [ ] 4. Media Upload (Local Storage)
   - Description: Implement file storage handling for resumes and documents using local disk storage (omitting AWS S3 for now).
   - Subtasks:
