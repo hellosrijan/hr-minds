@@ -32,10 +32,12 @@ For detailed guides, architecture notes, and API references, please check our [W
 
 - 🏠 **[Home](./wiki/Home.md)**: Overview & documentation index
 - 🏗️ **[Architecture](./wiki/Architecture.md)**: Project structure & design principles
-- 🔐 **[Authentication & RBAC](./wiki/Authentication.md)**: Argon2 hashing, JWT sessions, organizations, custom roles, invitations
+- 🔐 **[Authentication](./wiki/Authentication.md)**: Argon2 hashing, JWT database sessions, account lifecycle
+- 🧩 **[Features](./wiki/Features.md)**: Feature registry and system capability model
+- 👥 **[RBAC](./wiki/RBAC.md)**: Role-Based Access Control, multi-tenant organizations, and custom roles
 - 🔌 **[API Reference](./wiki/API-Endpoints.md)**: Every `/api/v1` endpoint with request/response examples and errors
 - 🐘 **[Database & Migrations](./wiki/Database-Migrations.md)**: Alembic setup and commands
-- 🚀 **[Development Setup](./wiki/Development-Setup.md)**: Local installation guide
+- 🚀 **[Development Setup](./wiki/Development-Setup.md)**: Local installation & Postman configuration guide
 
 
 ---

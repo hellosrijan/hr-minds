@@ -4,7 +4,7 @@ Every endpoint of the HR Minds API, with request and response examples. The exam
 
 Interactive docs, generated from the code, are served at `/docs` (Swagger UI) and `/redoc`.
 
-**Contents:** [Conventions](#conventions) · [Auth](#auth) · [Features](#features) · [Organizations](#organizations) · [Roles](#roles) · [Members](#members) · [Invitations](#invitations) · [Walkthrough](#walkthrough-curl)
+**Contents:** [Conventions](#conventions) · [Auth](#auth) · [RBAC](#rbac) ([Features](#features) · [Organizations](#organizations) · [Roles](#roles) · [Members](#members) · [Invitations](#invitations)) · [Walkthrough](#walkthrough-curl)
 
 ---
 
@@ -195,9 +195,13 @@ The email can be registered again afterwards.
 
 ---
 
-## Features
+## RBAC
 
-### `GET /features`
+Endpoints for managing the Role-Based Access Control system, tenant organizations, custom roles, memberships, and team invitations. All RBAC endpoints require `Authorization: Bearer <access_token>` and act on the organization specified by `X-Org-Id` (or the caller's personal organization by default).
+
+### Features
+
+#### `GET /features`
 
 Features and the actions that can be granted on each. Use it to build a role editor.
 
@@ -222,9 +226,9 @@ Features and the actions that can be granted on each. Use it to build a role edi
 
 ---
 
-## Organizations
+### Organizations
 
-### `GET /orgs`
+#### `GET /orgs`
 
 Organizations you belong to, with your role in each. Use it for an organization switcher; send the chosen `id` as `X-Org-Id`.
 
@@ -251,7 +255,7 @@ Organizations you belong to, with your role in each. Use it for an organization 
 
 ---
 
-## Roles
+### Roles
 
 All role endpoints act on the organization in [`X-Org-Id`](#choosing-the-organization-x-org-id), or on your own organization if it's omitted.
 
@@ -264,11 +268,11 @@ A role's permissions are written and returned grouped by feature:
 ]
 ```
 
-### `GET /roles`
+#### `GET /roles`
 
 **Requires:** `roles:read`. **Response** `200 OK`: a list of [roles](#post-roles), sorted by name.
 
-### `POST /roles`
+#### `POST /roles`
 
 Create a custom role.
 
@@ -317,11 +321,11 @@ Create a custom role.
 | `422` | `Unknown feature or action` | e.g. `"actions": ["fly"]`, or a feature not yet enabled |
 | `422` | validation list | `feature` isn't a known slug |
 
-### `GET /roles/{role_id}`
+#### `GET /roles/{role_id}`
 
 **Requires:** `roles:read`. **Response** `200 OK`: one role. **Errors:** `404 Role not found`, which also covers roles from other organizations.
 
-### `PATCH /roles/{role_id}`
+#### `PATCH /roles/{role_id}`
 
 Change any of `name`, `description`, `permissions`. Omitted fields stay as they are. `permissions`, when sent, **replaces** the whole set.
 
@@ -333,7 +337,7 @@ Change any of `name`, `description`, `permissions`. Omitted fields stay as they 
 
 **Response** `200 OK`: the updated role. **Errors:** as for [create](#post-roles), plus `404 Role not found`.
 
-### `DELETE /roles/{role_id}`
+#### `DELETE /roles/{role_id}`
 
 **Requires:** `roles:delete`, plus every permission the role grants. **Response:** `204 No Content`. Pending invitations for the role are deleted with it.
 
@@ -341,11 +345,11 @@ Change any of `name`, `description`, `permissions`. Omitted fields stay as they 
 
 ---
 
-## Members
+### Members
 
 All member endpoints act on the organization in [`X-Org-Id`](#choosing-the-organization-x-org-id), or on your own organization if it's omitted.
 
-### `GET /members`
+#### `GET /members`
 
 **Requires:** `members:read`. **Response** `200 OK`, in order of joining:
 
@@ -382,7 +386,7 @@ All member endpoints act on the organization in [`X-Org-Id`](#choosing-the-organ
 
 `created` on a member is when they joined the organization.
 
-### `PATCH /members/{user_id}`
+#### `PATCH /members/{user_id}`
 
 Give a member a different role. `user_id` is the user's `id`.
 
@@ -402,7 +406,7 @@ Give a member a different role. `user_id` is the user's `id`.
 | `403` | `You can't grant or manage permissions you don't have` | Escalation |
 | `404` | `Member not found` / `Role not found` | |
 
-### `DELETE /members/{user_id}`
+#### `DELETE /members/{user_id}`
 
 Remove a member from the organization. Their account and other memberships are untouched.
 
@@ -410,11 +414,11 @@ Remove a member from the organization. Their account and other memberships are u
 
 ---
 
-## Invitations
+### Invitations
 
 Inviting works the same for existing and new users: the invitee logs in (signing up first if needed) and accepts. No email is sent yet, so share the `accept_url` yourself.
 
-### `POST /invitations`
+#### `POST /invitations`
 
 Invite someone into the organization in [`X-Org-Id`](#choosing-the-organization-x-org-id) with a role.
 
@@ -440,7 +444,7 @@ The `accept_url` is shown **only in this response**; only a hash of it is stored
 
 **Errors:** `403` escalation · `404 Role not found` · `409 User is already a member of this organization`
 
-### `POST /invitations/{token}/accept`
+#### `POST /invitations/{token}/accept`
 
 Join the organization. You must be logged in with the **invited email**.
 

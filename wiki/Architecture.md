@@ -8,10 +8,10 @@ src/hr_minds/
 ├── settings/
 │   ├── config.py           # Pydantic Settings singleton: `settings`
 │   ├── db.py               # async engine, AsyncSessionLocal, Base, TimestampMixin, get_db
-│   ├── features.py         # FeatureSlug enum + FEATURES registry (used by RBAC)
+│   ├── features.py         # FeatureSlug enum + FEATURES registry — see [Features](Features)
 │   ├── logging.py          # setup_logging(): text to stdout, JSON to logs/app.log
 │   └── routers.py          # api_router (prefix /api/v1) — every module router mounts here
-├── auth/                   # see [Authentication](Authentication)
+├── auth/                   # Authentication & RBAC implementation — see [Authentication](Authentication), [RBAC](RBAC)
 │   ├── router/  schemas/  services/   # each split into auth.py and rbac.py
 │   ├── dependencies.py     # get_current_user, org-scoped require()
 │   ├── exceptions.py

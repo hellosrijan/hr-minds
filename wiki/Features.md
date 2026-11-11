@@ -1,0 +1,47 @@
+# Features
+
+In HR Minds, a **Feature** represents a functional domain of the platform. Features serve as the foundational building blocks for both module routing and the Role-Based Access Control (RBAC) permission system.
+
+---
+
+## 🏗️ How Features Work
+
+1. **Feature Registry (`src/hr_minds/settings/features.py`)**:
+   - Acts as the single code-level source of truth for all system capabilities.
+   - Each feature defines a unique slug (`FeatureSlug`), human-readable name, base URL path, and description.
+2. **Database Synchronization (`sync-features`)**:
+   - Code-defined features are synced to the database `feature` table via the CLI:
+     ```bash
+     uv run python -m hr_minds.auth.cli sync-features
+     ```
+   - Each registered feature automatically generates standard CRUD actions in the `permission` table: `create`, `read`, `update`, `delete`.
+3. **Endpoint Authorization (`require`)**:
+   - Endpoints secure access by requiring a specific feature and action pair:
+     ```python
+     membership: Membership = Depends(require(FeatureSlug.ROLES, "create"))
+     ```
+
+---
+
+## 📋 Feature Catalog
+
+| Feature | Slug | Status | Description | Standard Actions |
+| :--- | :--- | :--- | :--- | :--- |
+| **RBAC: Members** | `members` | **Active** | Invite organization members and manage member roles | `create`, `read`, `update`, `delete` |
+| **RBAC: Roles** | `roles` | **Active** | Create and manage custom organization roles and permissions | `create`, `read`, `update`, `delete` |
+| **Media** | `media` | *Upcoming* | Resume and employee document uploads | `create`, `read`, `update`, `delete` |
+| **Recruitment** | `recruitment` | *Roadmap* | Candidate pipeline, job postings, and Agentic RAG filtering | `create`, `read`, `update`, `delete` |
+| **Attendance** | `attendance` | *Roadmap* | Employee check-in, check-out, and shift tracking | `create`, `read`, `update`, `delete` |
+
+---
+
+## 🔐 Implemented Features
+
+### Role-Based Access Control (RBAC)
+The first fully active feature set in HR Minds is **RBAC** (encompassing `roles` and `members`). It provides organization-scoped multi-tenancy, custom role definitions, escalation guards, and team invitations.
+
+For detailed architecture, model relationships, and authorization rules:
+➡️ **[RBAC Documentation](RBAC)**
+
+For complete HTTP request and response specifications:
+➡️ **[API Reference](API-Endpoints)**

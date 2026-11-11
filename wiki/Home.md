@@ -8,9 +8,11 @@ HR management and Agentic RAG platform built with FastAPI, async SQLAlchemy, Ale
 
 | Page | What it covers |
 | :--- | :--- |
-| [Development Setup](Development-Setup) | Install, configure `.env`, run the API locally |
+| [Development Setup](Development-Setup) | Install, configure `.env`, run the API locally, Postman guide |
 | [Architecture](Architecture) | Project layout, settings, database base classes, routing, logging |
-| [Authentication](Authentication) | Argon2 passwords, JWT sessions, organizations, roles, invitations, `require()` |
+| [Authentication](Authentication) | Argon2 passwords, JWT sessions, account deletion, security model |
+| [Features](Features) | Feature registry, permissions model, and system capability catalog |
+| [RBAC](RBAC) | Role-Based Access Control: multi-tenant organization model, custom roles, escalation guards |
 | [API Reference](API-Endpoints) | Every `/api/v1` endpoint with request/response examples, errors, `X-Org-Id`, and a curl walkthrough |
 | [Database Migrations](Database-Migrations) | Alembic workflow and commands |
 
