@@ -1,76 +1,79 @@
-# Authentication & RBAC
+# Authentication & Session Management
 
-Code: `src/hr_minds/auth/`.
+Code location: `src/hr_minds/auth/`.
 
-## Passwords
+HR Minds uses an industry-standard security model combining **Argon2id password hashing**, **cryptographically signed JWTs**, and **stateful database-backed token tracking** for immediate revocation.
 
-`User` hashes passwords with Argon2id (`pwdlib.PasswordHash.recommended()`). Only the hash is stored. `services.authenticate_user` verifies against a dummy hash when the email is unknown so login timing does not reveal which emails exist, and checks `is_active` only after the password matches.
+---
 
-## Sessions (JWT + database row)
+## 🔒 Password Security & Verification
 
-Each login inserts an `AccessToken` row and returns a signed JWT with `sub` (user id), `exp` and `jti`.
+- **Argon2id Hashing**: Passwords are hashed using Argon2id via `pwdlib` (`pwdlib.PasswordHash.recommended()`). Plaintext passwords are never stored or logged.
+- **Timing-Safe Verification**: When `authenticate_user` receives an unknown email, it verifies against a static dummy hash. This ensures constant-time execution and prevents account enumeration via response-timing discrepancies.
+- **Account State Verification**: The user's `is_active` status is checked strictly after verifying the password hash, preventing attackers from probing for inactive accounts without valid credentials.
 
-A request is authenticated only if **both** hold (`dependencies.get_token_payload`):
+---
 
-1. The JWT signature and expiry are valid (`SECRET_KEY`, `ALGORITHM`).
-2. An `access_token` row with that `jti` exists, is not revoked and has not expired.
+## 🎟️ Session Lifecycle (JWT + Database Tracking)
 
-`POST /auth/logout` sets `revoked_at` on the row, so the token stops working immediately. Expired rows are deleted by `uv run python -m hr_minds.auth.tasks`.
+Sessions combine stateless JWT verification with stateful database revocation:
 
-`get_current_user` then loads the user and rejects inactive or deleted accounts with 401.
+1. **Token Issuance (`POST /api/v1/auth/token`)**:
+   - Accepts OAuth2-compatible form data (`username` / `password`).
+   - Inserts an `access_token` record containing a unique UUID `jti`, the user ID, and an expiry timestamp (`expires_at`).
+   - Issues a signed JWT containing claims: `sub` (user ID), `jti` (session UUID), and `exp` (UTC timestamp).
+2. **Session Verification (`dependencies.get_token_payload`)**:
+   - Every protected request verifies **both**:
+     - The JWT cryptographic signature and expiration time (`SECRET_KEY`, `ALGORITHM`).
+     - The database `access_token` record with that `jti` exists, is not expired, and has not been revoked (`revoked_at IS NULL`).
+   - `get_current_user` then loads the user record and confirms `is_active=True`.
+3. **Session Revocation (`POST /api/v1/auth/logout`)**:
+   - Sets `revoked_at` on the matching `access_token` row.
+   - The token becomes invalid immediately across all servers. Other sessions belonging to the same user remain unaffected.
+4. **Automated Session Cleanup**:
+   - Expired database tokens are cleaned up using the background CLI task:
+     ```bash
+     uv run python -m hr_minds.auth.tasks
+     ```
 
-## Organizations & RBAC
+---
 
-RBAC is per organization (multi-tenant). Code: `models/org.py`, `models/rbac.py`, `services/rbac.py`, `router/rbac.py`.
+## 🗑️ Account Deletion & Cascading Impact
 
-- **Signup** (`POST /auth/register`, public) creates the user, a personal `organization` they own (named after their first name), and an owner `membership`.
-- **Organization IDs** shown to clients are `public_id`s like `org_srijan_k3x9p2m7qa`: `org_`, the name lowercased with other characters turned into `-` (max 30), and 10 random characters. Set once at creation; the integer `id` stays internal.
-- **Features and permissions** come from code: `FEATURES` × `DEFAULT_ACTIONS` in `settings/features.py`, written to `feature`/`permission` by `uv run python -m hr_minds.auth.cli sync-features`. Rerun it after adding a feature.
-- **Roles** belong to one org and have a custom name (unique per org). The owner picks which `feature:action` pairs each role grants.
-- **Membership** links a user to an org with **one** role. The owner's membership has no role; owners can do everything in their org.
-- **Invitations** add anyone, existing account or not. The invitee logs in with the invited email and calls the `accept_url`. Only a SHA-256 of the token is stored; links are single-use and expire after 7 days. No email is sent yet: the inviter shares the link.
+A user can permanently delete their account via `DELETE /api/v1/auth/me` (requires their current password for confirmation).
 
-Tables: `organization` ← `membership` → `user`; `membership` → `role` → `role_permission` → `permission` → `feature`; `invitation` → `organization`, `role`.
-
-### Protecting an endpoint
-
-Clients pick the organization with the `X-Org-Id` header (a public id). Without it, the user's **own** organization is used, so single-org users never need it. `require(feature, action)` resolves the header and returns the caller's `Membership`:
-
-```python
-from hr_minds.auth.dependencies import require
-from hr_minds.settings.features import FeatureSlug
-
-@router.get("/media")
-async def list_media(membership: Membership = Depends(require(FeatureSlug.MEDIA, "read")), db=...):
-    return await db.scalars(select(Media).where(Media.org_id == membership.org_id))
-```
-
-Never read the org from the request yourself; use `membership.org_id`, which `require()` has already verified.
-
-Non-members get **404** (so outsiders can't tell the org exists); members without the permission get **403**. `is_superuser` does **not** bypass org checks: tenant data stays inside its org.
-
-Any table holding org data (media, recruitment, …) needs an `org_id` column, and every query must filter by `membership.org_id`.
-
-### Escalation rules (`services/rbac.py`)
-
-A non-owner can only grant, edit, delete or assign roles whose permissions they hold themselves, and can only manage members whose current role they could have granted. Nobody can change the owner's membership or their own. Violations return 403.
-
-### Deleting an account
-
-`DELETE /auth/me` (password required) deletes the user; foreign keys do the rest. Memberships in other organizations are removed without touching those organizations. The user's own organization is deleted with them, so the request is refused (409) while it has other members; there is no ownership transfer yet. Invitations they sent survive (`invitation.invited_by_id` is `ON DELETE SET NULL`).
-
-Tests: `tests/auth/router/test_auth.py` and `tests/auth/router/test_rbac.py`.
-
-## Errors
-
-| Situation | Status |
+### Cascading Rules & Data Preservation:
+| Data Category | Outcome |
 | :--- | :--- |
-| Missing / invalid / revoked token | 401 (`WWW-Authenticate: Bearer`) |
-| Wrong email or password | 401 `Incorrect email or password` |
-| Correct password, disabled account | 403 `Account is disabled` |
-| Not a member of the org | 404 `Organization not found` |
-| Missing permission | 403 `Access denied` |
-| Granting/managing beyond your permissions, or changing owner/self | 403 |
-| Unknown role, member, or invalid/expired/used invitation | 404 |
-| Email already registered, duplicate role name, role still assigned, already a member | 409 |
-| Unknown feature or action | 422 |
+| **User & Password** | Deleted immediately. The email address becomes immediately eligible for re-registration. |
+| **Active Sessions** | All `access_token` records for the user are deleted via database `CASCADE`. |
+| **Memberships in Other Orgs** | Removed cleanly. The target organizations, their roles, and other members are untouched. |
+| **Personal Organization** | Deleted along with its custom roles and pending invitations, **provided no other members exist**. |
+| **Orgs With Other Members** | If other members belong to the user's personal organization, deletion is refused with `409 Conflict`. Members must be removed first. |
+| **Sent Invitations** | Invitations sent by the user to other organizations remain valid (`invitation.invited_by_id` is set to `NULL`). |
+
+---
+
+## 👥 Multi-Tenant Organization & RBAC Integration
+
+At signup (`POST /api/v1/auth/register`), a personal **Organization** is automatically provisioned for the new user, and they are granted the **Owner** membership.
+
+For complete documentation on organization scoping, custom roles, permissions, and endpoint protection:
+- 🧩 **[Features](Features)**: Overview of the system feature registry and permission model.
+- 👥 **[RBAC](RBAC)**: Role-Based Access Control, custom roles, permissions, and multi-tenant organization scoping.
+- 🔌 **[API Reference](API-Endpoints)**: Interactive endpoints, cURL examples, request schemas, and responses.
+
+---
+
+## ⚠️ Authentication Error Reference
+
+| Status Code | Error Message (`detail`) | Scenario |
+| :--- | :--- | :--- |
+| `401 Unauthorized` | `Incorrect email or password` | Email does not exist OR password does not match (deliberately uniform) |
+| `401 Unauthorized` | `Invalid or expired token` | Malformed JWT, expired JWT, or missing bearer prefix |
+| `401 Unauthorized` | `Session is revoked or expired` | Valid JWT signature, but token was logged out or expired in DB |
+| `401 Unauthorized` | `User is inactive or no longer exists` | User was disabled or deleted after token issuance |
+| `403 Forbidden` | `Account is disabled` | Valid email and password supplied, but account has `is_active=False` |
+| `403 Forbidden` | `Incorrect password` | Incorrect password supplied to `DELETE /auth/me` |
+| `409 Conflict` | `Email already registered` | Registration attempted with an already existing email address |
+| `409 Conflict` | `Your organization still has members...` | Deleting account while personal org contains other active members |
