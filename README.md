@@ -38,6 +38,7 @@ For detailed guides, architecture notes, and API references, please check our [W
 - 👥 **[RBAC](./wiki/RBAC.md)**: Role-Based Access Control, multi-tenant organizations, and custom roles
 - 📁 **[Media](./wiki/Media.md)**: Local candidate resume scanner, SSE streaming, and file cataloging
 - 💬 **[Conversation](./wiki/Conversation.md)**: Central chat session store, private per user, with messages and optional context
+- 🧑‍💼 **[Recruitment](./wiki/Recruitment.md)**: Job postings, requirements, and the candidate pipeline
 - 🔌 **[API Reference](./wiki/API-Endpoints.md)**: Every `/api/v1` endpoint with request/response examples and errors
 - 🐘 **[Database & Migrations](./wiki/Database-Migrations.md)**: Alembic setup and commands
 - 🚀 **[Development Setup](./wiki/Development-Setup.md)**: Local installation & Postman configuration guide
@@ -86,6 +87,11 @@ hr-minds/
 │       │   ├── router/          # conversation.py
 │       │   ├── schemas/         # ConversationCreate/Update/Read, MessageCreate/Read
 │       │   └── services/        # conversation.py
+│       ├── recruitment/         # Job postings & candidate pipeline
+│       │   ├── models/          # JobPosting, JobRequirement, JobCandidate, JobCandidateStatus
+│       │   ├── router/          # job_posting.py, job_candidate.py
+│       │   ├── schemas/         # job_posting.py, job_candidate.py
+│       │   └── services/        # job_posting.py, job_candidate.py
 │       └── migrations/          # Alembic database migrations
 │           └── env.py           # [Custom] Alembic environment & metadata setup
 ├── tests/                       # pytest (uses an hr_minds_test database)

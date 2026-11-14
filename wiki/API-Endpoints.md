@@ -4,7 +4,7 @@ Every endpoint of the HR Minds API, with request and response examples. The exam
 
 Interactive docs, generated from the code, are served at `/docs` (Swagger UI) and `/redoc`.
 
-**Contents:** [Conventions](#conventions) · [Auth](#auth) · [RBAC](#rbac) ([Features](#features) · [Organizations](#organizations) · [Roles](#roles) · [Members](#members) · [Invitations](#invitations)) · [Media](#media) ([Local Scans](#local-media-scans)) · [Conversations](#conversations) · [Walkthrough](#walkthrough-curl)
+**Contents:** [Conventions](#conventions) · [Auth](#auth) · [RBAC](#rbac) ([Features](#features) · [Organizations](#organizations) · [Roles](#roles) · [Members](#members) · [Invitations](#invitations)) · [Media](#media) ([Local Scans](#local-media-scans)) · [Conversations](#conversations) · [Recruitment](#recruitment) ([Job Postings](#job-postings) · [Candidates](#candidates)) · [Walkthrough](#walkthrough-curl)
 
 ---
 
@@ -40,7 +40,7 @@ Organization IDs look like `org_<name>_<10 random characters>`. They never chang
 
 ### Pagination
 
-List endpoints that can return many rows are paginated and return an envelope instead of a bare array. Currently these are `GET /media/local-scans/{scan_id}/files`, `GET /conversations` and `GET /conversations/{conversation_id}/messages` (the last defaults to `page_size=50`).
+List endpoints that can return many rows are paginated and return an envelope instead of a bare array. Currently these are `GET /media/local-scans/{scan_id}/files`, `GET /conversations`, `GET /conversations/{conversation_id}/messages` (defaults to `page_size=50`), `GET /recruitment/job-postings` and `GET /recruitment/job-postings/{id}/candidates`.
 
 | Query parameter | Default | Limits |
 | :--- | :--- | :--- |
@@ -72,6 +72,7 @@ Each organization endpoint requires a `feature:action` permission, e.g. `roles:c
 | `roles` | Viewing and editing custom roles |
 | `media` | Registering local resume folders, triggering scans, listing discovered files, deleting scans |
 | `conversation` | Starting, listing, renaming and deleting your chats, and reading and adding their messages |
+| `recruitment` | Job postings and requirements, and selecting, viewing and moving candidates through the pipeline |
 
 Actions are always `create`, `read`, `update`, `delete`. [`GET /features`](#get-features) lists what is currently available.
 
@@ -819,6 +820,218 @@ Add a message. It is always stored as a `user` message, and the conversation's `
 | `404` | `Conversation not found` | Unknown id, or not your conversation |
 | `422` | `Extra inputs are not permitted` | The body has a field other than `content`, e.g. `role` |
 | `422` | validation error | `content` empty, only whitespace, or over 20,000 characters |
+
+---
+
+## Recruitment
+
+Job postings and the candidate pipeline. All endpoints require `Authorization: Bearer <access_token>` and act on the organization in `X-Org-Id` (or your own). One feature, `recruitment`, gates every endpoint below — see [permissions](#permissions). More in the [Recruitment](Recruitment) page.
+
+### Job Postings
+
+#### `POST /recruitment/job-postings`
+
+Create a job posting with its requirements.
+
+**Requires:** `recruitment:create`.
+
+```json
+{
+  "title": "Backend Engineer",
+  "description": "We need a backend engineer to help scale our platform.",
+  "requirements": [
+    { "text": "5+ years of Python", "must_have": true },
+    { "text": "Experience with Kubernetes", "must_have": false }
+  ]
+}
+```
+
+`requirements` is optional (defaults to `[]`) and capped at 50 entries.
+
+**Response** `201 Created`
+
+```json
+{
+  "id": 1,
+  "title": "Backend Engineer",
+  "description": "We need a backend engineer to help scale our platform.",
+  "created_by_email": "alice@example.com",
+  "requirements": [
+    { "id": 1, "text": "5+ years of Python", "must_have": true },
+    { "id": 2, "text": "Experience with Kubernetes", "must_have": false }
+  ],
+  "created": "2026-11-14T13:08:57.212082Z",
+  "modified": "2026-11-14T13:08:57.212082Z"
+}
+```
+
+**Errors:** `422 Validation Error` (empty/over-long `title` or `description`, more than 50 requirements)
+
+---
+
+#### `GET /recruitment/job-postings`
+
+List job postings for the active organization, [paginated](#pagination).
+
+**Requires:** `recruitment:read`. **Response** `200 OK`
+
+```json
+{
+  "items": [ { "id": 1, "title": "Backend Engineer", "...": "same shape as above" } ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1
+}
+```
+
+---
+
+#### `GET /recruitment/job-postings/{job_posting_id}`
+
+One job posting, same shape as the create response.
+
+**Requires:** `recruitment:read`. **Response** `200 OK`
+
+**Errors:** `404 Job posting not found` (also for another organization's posting)
+
+---
+
+#### `PATCH /recruitment/job-postings/{job_posting_id}`
+
+Update a posting. Omitted fields are unchanged. If `requirements` is sent, it **replaces the whole list** — send every requirement you want kept, or `[]` to clear them all.
+
+**Requires:** `recruitment:update`.
+
+```json
+{ "title": "Senior Backend Engineer" }
+```
+
+**Response** `200 OK`
+
+```json
+{
+  "id": 1,
+  "title": "Senior Backend Engineer",
+  "description": "We need a backend engineer to help scale our platform.",
+  "created_by_email": "alice@example.com",
+  "requirements": [
+    { "id": 1, "text": "5+ years of Python", "must_have": true },
+    { "id": 2, "text": "Experience with Kubernetes", "must_have": false }
+  ],
+  "created": "2026-11-14T13:08:57.212082Z",
+  "modified": "2026-11-14T13:08:57.267677Z"
+}
+```
+
+**Errors:** `404 Job posting not found`, `422 Validation Error`
+
+---
+
+#### `DELETE /recruitment/job-postings/{job_posting_id}`
+
+Delete a posting, its requirements, and every candidate selected for it. The resume files themselves (and their `LocalMedia` records) are untouched.
+
+**Requires:** `recruitment:delete`. **Response:** `204 No Content`.
+
+**Errors:** `404 Job posting not found`
+
+---
+
+### Candidates
+
+A candidate is a resume (a [`LocalMedia`](Media) file) selected for one job posting, with a pipeline status: `shortlisted`, `interviewing`, `offered`, `hired`, or `rejected`.
+
+#### `POST /recruitment/job-postings/{job_posting_id}/candidates`
+
+Select a resume for this job posting. Starts at `shortlisted`.
+
+**Requires:** `recruitment:create`.
+
+```json
+{ "local_media_id": 1 }
+```
+
+**Response** `201 Created`
+
+```json
+{
+  "id": 1,
+  "status": "shortlisted",
+  "resume": {
+    "id": 1,
+    "scan_id": 1,
+    "file_name": "alice_cv.pdf",
+    "relative_path": "alice_cv.pdf",
+    "file_path": "/Users/hr/resumes/alice_cv.pdf",
+    "media_type": "pdf",
+    "file_size_bytes": 1048576,
+    "file_modified_at": "2026-11-14T13:08:57.289759Z",
+    "created": "2026-11-14T13:08:57.316238Z"
+  },
+  "selected_by_email": "alice@example.com",
+  "created": "2026-11-14T13:08:57.379563Z",
+  "modified": "2026-11-14T13:08:57.379563Z"
+}
+```
+
+**Errors:**
+
+| Status | Detail | When |
+| :--- | :--- | :--- |
+| `404` | `Job posting not found` | Unknown id, or another organization's posting |
+| `404` | `Resume not found` | Unknown `local_media_id`, or it belongs to another organization |
+| `409` | `This resume is already selected for this job posting` | Selecting the same resume twice for the same posting |
+
+---
+
+#### `GET /recruitment/job-postings/{job_posting_id}/candidates`
+
+List candidates for this posting, [paginated](#pagination), optionally filtered to one status.
+
+**Requires:** `recruitment:read`.
+
+**Query Parameters:** `status` (optional: `shortlisted`, `interviewing`, `offered`, `hired`, or `rejected`), plus `page` / `page_size`.
+
+**Response** `200 OK`
+
+```json
+{
+  "items": [ { "id": 1, "status": "shortlisted", "resume": { "...": "..." }, "...": "same shape as above" } ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1
+}
+```
+
+**Errors:** `404 Job posting not found`
+
+---
+
+#### `PATCH /recruitment/job-postings/{job_posting_id}/candidates/{candidate_id}`
+
+Move a candidate to a new pipeline status. Any status may follow any other — this just records where they stand.
+
+**Requires:** `recruitment:update`.
+
+```json
+{ "status": "interviewing" }
+```
+
+**Response** `200 OK` (the updated candidate, `modified` moved forward).
+
+**Errors:** `404 Job posting not found`, `404 Candidate not found`, `422 Validation Error` (not one of the five status values)
+
+---
+
+#### `DELETE /recruitment/job-postings/{job_posting_id}/candidates/{candidate_id}`
+
+Remove a candidate from the pipeline. The resume file and its `LocalMedia` record are untouched — only the selection is deleted.
+
+**Requires:** `recruitment:delete`. **Response:** `204 No Content`.
+
+**Errors:** `404 Job posting not found`, `404 Candidate not found`
 
 ---
 

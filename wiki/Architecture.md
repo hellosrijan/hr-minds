@@ -10,7 +10,7 @@ src/hr_minds/
 │   ├── db.py               # async engine, AsyncSessionLocal, Base, TimestampMixin, get_db
 │   ├── features.py         # FeatureSlug enum + FEATURES registry — see [Features](Features)
 │   ├── logging.py          # setup_logging(): text to stdout, JSON to logs/app.log
-│   └── routers.py          # api_router (prefix /api/v1) — mounts auth, media and conversation routers
+│   └── routers.py          # api_router (prefix /api/v1) — mounts auth, media, conversation and recruitment routers
 ├── auth/                   # Authentication & RBAC implementation — see [Authentication](Authentication), [RBAC](RBAC)
 │   ├── router/  schemas/  services/   # each split into auth.py and rbac.py
 │   ├── dependencies.py     # get_current_user, org-scoped require()
@@ -30,10 +30,16 @@ src/hr_minds/
 │   ├── services/           # conversation.py (CRUD, list_messages, add_message)
 │   ├── exceptions.py       # ConversationNotFound (404)
 │   └── models/             # Conversation, Message, MessageRole
+├── recruitment/            # Job postings & candidate pipeline — see [Recruitment](Recruitment)
+│   ├── router/             # job_posting.py, job_candidate.py (nested under a posting)
+│   ├── schemas/            # job_posting.py, job_candidate.py
+│   ├── services/           # job_posting.py, job_candidate.py
+│   ├── exceptions.py       # JobPostingNotFound/JobCandidateNotFound/ResumeNotFound (404), CandidateAlreadySelected (409)
+│   └── models/             # JobPosting, JobRequirement, JobCandidate, JobCandidateStatus
 ├── utils/
 │   └── pagination.py       # PaginatedResponse[T] envelope for paginated list endpoints
 └── migrations/             # Alembic (async)
-tests/                      # pytest, mirrors src/hr_minds (tests/auth/, tests/media/, tests/conversation/)
+tests/                      # pytest, mirrors src/hr_minds (tests/auth/, tests/media/, tests/conversation/, tests/recruitment/)
 ```
 
 ## Routing
