@@ -4,7 +4,7 @@ Every endpoint of the HR Minds API, with request and response examples. The exam
 
 Interactive docs, generated from the code, are served at `/docs` (Swagger UI) and `/redoc`.
 
-**Contents:** [Conventions](#conventions) · [Auth](#auth) · [RBAC](#rbac) ([Features](#features) · [Organizations](#organizations) · [Roles](#roles) · [Members](#members) · [Invitations](#invitations)) · [Walkthrough](#walkthrough-curl)
+**Contents:** [Conventions](#conventions) · [Auth](#auth) · [RBAC](#rbac) ([Features](#features) · [Organizations](#organizations) · [Roles](#roles) · [Members](#members) · [Invitations](#invitations)) · [Media](#media) ([Local Scans](#local-media-scans)) · [Walkthrough](#walkthrough-curl)
 
 ---
 
@@ -46,6 +46,7 @@ Each organization endpoint requires a `feature:action` permission, e.g. `roles:c
 | :--- | :--- |
 | `members` | Viewing members, inviting, changing roles, removing |
 | `roles` | Viewing and editing custom roles |
+| `media` | Registering local resume folders, triggering scans, listing discovered files, deleting scans |
 
 Actions are always `create`, `read`, `update`, `delete`. [`GET /features`](#get-features) lists what is currently available.
 
@@ -463,6 +464,160 @@ Join the organization. You must be logged in with the **invited email**.
 
 ---
 
+## Media
+
+Endpoints for registering and scanning local candidate resume folders (`pdf`, `doc`, `docx`, `jpg`, `jpeg`, `png`, `webp`). All media endpoints require `Authorization: Bearer <access_token>` and act on the organization specified by `X-Org-Id` (or the caller's personal organization by default).
+
+Streaming endpoints use **Server-Sent Events (SSE)**. In cURL, pass `-N` (unbuffered) to observe events in real time.
+
+### Local Media Scans
+
+#### `POST /media/local-scans`
+
+Register a local folder path and immediately start the initial scan, streaming live progress back over SSE.
+
+**Requires:** `media:create`.
+
+**Pre-stream validation:** If `folder_path` does not exist or is not a directory, the endpoint returns `422 Unprocessable Content` before opening the stream.
+
+**Body** (JSON)
+
+| Field | Type | Rules |
+| :--- | :--- | :--- |
+| `name` | string | 1–255 characters |
+| `folder_path` | string | 1–1024 characters, must resolve to an existing local directory |
+
+```json
+{
+  "name": "Engineering Resumes",
+  "folder_path": "/Users/alice/Documents/resumes"
+}
+```
+
+**Response** `201 Created` (`Content-Type: text/event-stream`)
+
+```text
+event: registered
+data: {"id":1,"name":"Engineering Resumes","folder_path":"/Users/alice/Documents/resumes","hostname":"alice-macbook","os_name":"macOS","os_version":"15.1","created_by_email":"alice@example.com","last_scanned_by_email":null,"last_scanned_at":null,"created":"2026-11-14T10:15:28Z","modified":"2026-11-14T10:15:28Z"}
+
+event: progress
+data: {"file":"alice_cv.pdf","media_type":"pdf","count":1}
+
+event: progress
+data: {"file":"subfolder/bob_resume.docx","media_type":"document","count":2}
+
+event: summary
+data: {"total":2,"removed":0,"pdf":1,"document":1,"image":0,"hostname":"alice-macbook","os_name":"macOS","os_version":"15.1","scanned_by_email":"alice@example.com"}
+```
+
+**Errors**
+| Status | `detail` | When |
+| :--- | :--- | :--- |
+| `401` | `Invalid or expired token` | Missing or invalid auth token |
+| `403` | `Access denied` | Caller lacks `media:create` permission |
+| `422` | `Folder path does not exist or is not a directory` | Path is not a valid directory on the server |
+
+---
+
+#### `GET /media/local-scans`
+
+List all registered local folders for the active organization.
+
+**Requires:** `media:read`. **Response** `200 OK`
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Engineering Resumes",
+    "folder_path": "/Users/alice/Documents/resumes",
+    "hostname": "alice-macbook",
+    "os_name": "macOS",
+    "os_version": "15.1",
+    "created_by_email": "alice@example.com",
+    "last_scanned_by_email": "alice@example.com",
+    "last_scanned_at": "2026-11-14T10:15:30Z",
+    "created": "2026-11-14T10:15:28Z",
+    "modified": "2026-11-14T10:15:30Z"
+  }
+]
+```
+
+---
+
+#### `GET /media/local-scans/{scan_id}/files`
+
+List all candidate resume files discovered inside a registered folder.
+
+**Requires:** `media:read`. **Response** `200 OK`
+
+```json
+[
+  {
+    "id": 1,
+    "scan_id": 1,
+    "file_name": "alice_cv.pdf",
+    "relative_path": "alice_cv.pdf",
+    "media_type": "pdf",
+    "file_size_bytes": 1048576,
+    "file_modified_at": "2026-11-14T09:30:00Z",
+    "created": "2026-11-14T10:15:29Z"
+  },
+  {
+    "id": 2,
+    "scan_id": 1,
+    "file_name": "bob_resume.docx",
+    "relative_path": "subfolder/bob_resume.docx",
+    "media_type": "document",
+    "file_size_bytes": 524288,
+    "file_modified_at": "2026-11-14T09:40:00Z",
+    "created": "2026-11-14T10:15:29Z"
+  }
+]
+```
+
+**Errors:** `404 Local media scan not found`
+
+---
+
+#### `POST /media/local-scans/{scan_id}/scan`
+
+Trigger an on-demand re-scan of a registered folder. Detects new and modified files, drops deleted files, and streams progress over SSE.
+
+**Requires:** `media:create`.
+
+**Pre-stream validation:** If `scan_id` does not exist in the active organization, returns `404 Not Found` before opening the stream.
+
+**Response** `200 OK` (`Content-Type: text/event-stream`)
+
+```text
+event: progress
+data: {"file":"alice_cv.pdf","media_type":"pdf","count":1}
+
+event: summary
+data: {"total":1,"removed":1,"pdf":1,"document":0,"image":0,"hostname":"alice-macbook","os_name":"macOS","os_version":"15.1","scanned_by_email":"alice@example.com"}
+```
+
+If the endpoint is executed from a machine with a different hostname than the one the folder was registered on, an `error` event is emitted:
+```text
+event: error
+data: {"detail":"Folder is on alice-macbook; this system is worker-node-2"}
+```
+
+**Errors:** `404 Local media scan not found`
+
+---
+
+#### `DELETE /media/local-scans/{scan_id}`
+
+Remove a registered folder and delete all its discovered file records from the database. Files on the local disk are untouched.
+
+**Requires:** `media:delete`. **Response:** `204 No Content`.
+
+**Errors:** `404 Local media scan not found`
+
+---
+
 ## Walkthrough (curl)
 
 Alice invites Bob into her organization as an HR Manager.
@@ -482,7 +637,7 @@ BOB=$(curl -s -X POST $API/auth/token -d 'username=bob@example.com&password=pass
 
 # 3. Alice creates a role (no X-Org-Id: her own organization)
 ROLE=$(curl -s -X POST $API/roles -H "Authorization: Bearer $ALICE" -H 'Content-Type: application/json' \
-  -d '{"name":"HR Manager","permissions":[{"feature":"members","actions":["read","create"]}]}' | jq -r .id)
+  -d '{"name":"HR Manager","permissions":[{"feature":"members","actions":["read","create"]},{"feature":"media","actions":["create","read","delete"]}]}' | jq -r .id)
 
 # 4. Alice invites Bob and shares the link
 URL=$(curl -s -X POST $API/invitations -H "Authorization: Bearer $ALICE" -H 'Content-Type: application/json' \
@@ -493,4 +648,11 @@ ORG=$(curl -s -X POST "$URL" -H "Authorization: Bearer $BOB" | jq -r .id)
 
 # 6. Bob works in Alice's organization
 curl -s $API/members -H "Authorization: Bearer $BOB" -H "X-Org-Id: $ORG"
+
+# 7. Bob registers a local resume folder and streams scan events in real-time
+curl -N -s -X POST $API/media/local-scans \
+  -H "Authorization: Bearer $BOB" \
+  -H "X-Org-Id: $ORG" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Engineering Resumes","folder_path":"/tmp/resumes"}'
 ```

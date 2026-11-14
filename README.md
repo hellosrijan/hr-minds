@@ -35,6 +35,7 @@ For detailed guides, architecture notes, and API references, please check our [W
 - 🔐 **[Authentication](./wiki/Authentication.md)**: Argon2 hashing, JWT database sessions, account lifecycle
 - 🧩 **[Features](./wiki/Features.md)**: Feature registry and system capability model
 - 👥 **[RBAC](./wiki/RBAC.md)**: Role-Based Access Control, multi-tenant organizations, and custom roles
+- 📁 **[Media](./wiki/Media.md)**: Local candidate resume scanner, SSE streaming, and file cataloging
 - 🔌 **[API Reference](./wiki/API-Endpoints.md)**: Every `/api/v1` endpoint with request/response examples and errors
 - 🐘 **[Database & Migrations](./wiki/Database-Migrations.md)**: Alembic setup and commands
 - 🚀 **[Development Setup](./wiki/Development-Setup.md)**: Local installation & Postman configuration guide
@@ -72,6 +73,11 @@ hr-minds/
 │       │   ├── router/          # auth.py, rbac.py
 │       │   ├── schemas/         # auth.py, rbac.py
 │       │   └── services/        # auth.py, rbac.py
+│       ├── media/               # Local resume folder scanner & cataloging
+│       │   ├── models/          # LocalMediaScan, LocalMedia, MediaType
+│       │   ├── router/          # local_media_scan.py (SSE streaming routes)
+│       │   ├── schemas/         # LocalMediaScanCreate, LocalMediaScanRead, LocalMediaRead
+│       │   └── services/        # scanner.py, local_media_scan.py
 │       └── migrations/          # Alembic database migrations
 │           └── env.py           # [Custom] Alembic environment & metadata setup
 ├── tests/                       # pytest (uses an hr_minds_test database)
