@@ -3,6 +3,7 @@ name = "hr-minds"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
+license = "MIT"
 authors = [{ name = "Srijan Kumar", email = "srijan.kumar.cs@gmail.com" }]
 requires-python = ">=3.14"
 dependencies = [

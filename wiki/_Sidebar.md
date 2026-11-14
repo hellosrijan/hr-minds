@@ -9,3 +9,4 @@
   - [Media](Media)
 - [API Reference](API-Endpoints)
 - [Database Migrations](Database-Migrations)
+- [License](License)

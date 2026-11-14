@@ -9,6 +9,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
 [![uv](https://img.shields.io/badge/uv-Package%20Manager-de5fe9?style=for-the-badge&logo=astral&logoColor=white)](https://github.com/astral-sh/uv)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 *A modular HR platform built with FastAPI, SQLAlchemy (Async), Alembic, and PostgreSQL.*
 
@@ -39,6 +40,7 @@ For detailed guides, architecture notes, and API references, please check our [W
 - 🔌 **[API Reference](./wiki/API-Endpoints.md)**: Every `/api/v1` endpoint with request/response examples and errors
 - 🐘 **[Database & Migrations](./wiki/Database-Migrations.md)**: Alembic setup and commands
 - 🚀 **[Development Setup](./wiki/Development-Setup.md)**: Local installation & Postman configuration guide
+- 📄 **[License](./wiki/License.md)**: MIT License details and permissions
 
 
 ---
@@ -85,6 +87,7 @@ hr-minds/
 ├── alembic.ini                  # Alembic configuration
 ├── .env.example                 # Environment variable template
 ├── pyproject.toml               # Project metadata & dependencies
+├── LICENSE                      # MIT License
 └── README.md
 ```
 
@@ -191,3 +194,12 @@ All settings are loaded from `.env`:
 | `OPENAI_API_KEY` | *optional* | OpenAI API key |
 
 > ⚠️ Never commit your `.env` file. Use `.env.example` for shared templates.
+
+---
+
+## 📄 License
+
+This project is licensed under the terms of the [MIT License](LICENSE).
+
+You are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software, subject to the conditions in the `LICENSE` file.
+

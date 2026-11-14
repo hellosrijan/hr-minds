@@ -1,0 +1,50 @@
+# License
+
+**HR Minds API** is open-source software licensed under the **[MIT License](https://opensource.org/licenses/MIT)**.
+
+---
+
+## Overview
+
+The MIT License is a permissive free software license. It places very few restrictions on reuse, making it ideal for open-source reference implementations, personal practice, and portfolio projects.
+
+### What You Can Do
+- **Commercial & Private Use**: Use the code commercially or in private projects.
+- **Modification**: Modify, rewrite, or extend the codebase.
+- **Distribution**: Distribute copies of the original or modified code.
+- **Sublicensing**: Incorporate the code into software with different license terms.
+
+### What You Must Do
+- **Include Copyright Notice**: Include the original copyright notice and permission notice in all copies or substantial portions of the software.
+
+### Limitations
+- **No Warranty**: The software is provided "as is", without warranty of any kind.
+- **No Liability**: The author and copyright holders cannot be held liable for any damages or claims arising from the use of the software.
+
+---
+
+## License Text
+
+```text
+MIT License
+
+Copyright (c) 2026 Srijan Kumar
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
