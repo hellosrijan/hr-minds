@@ -38,9 +38,15 @@ async def list_for_org(db: AsyncSession, org_id: int) -> list[LocalMediaScan]:
     return await LocalMediaScan.list_for_org(db, org_id)
 
 
-async def list_files(db: AsyncSession, org_id: int, scan_id: int) -> list[LocalMedia]:
+async def list_files(
+    db: AsyncSession,
+    org_id: int,
+    scan_id: int,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[LocalMedia], int]:
     scan = await get(db, org_id, scan_id)
-    return await LocalMedia.list_for_scan(db, scan.id)
+    return await LocalMedia.list_for_scan(db, scan.id, page=page, page_size=page_size)
 
 
 async def delete(db: AsyncSession, org_id: int, scan_id: int) -> None:

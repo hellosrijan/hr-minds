@@ -179,7 +179,7 @@ The media module integrates with HR Minds' Role-Based Access Control and multi-t
 | :--- | :--- | :--- |
 | `POST /api/v1/media/local-scans` | `media:create` | Register a new local folder and start initial scan |
 | `GET /api/v1/media/local-scans` | `media:read` | List all registered local folders for the organization |
-| `GET /api/v1/media/local-scans/{id}/files` | `media:read` | List all discovered resumes inside a registered folder |
+| `GET /api/v1/media/local-scans/{id}/files` | `media:read` | List discovered resumes inside a registered folder (paginated: `?page=1&page_size=20`) |
 | `POST /api/v1/media/local-scans/{id}/scan` | `media:create` | Trigger an on-demand re-scan of a registered folder |
 | `DELETE /api/v1/media/local-scans/{id}` | `media:delete` | Unregister a folder and remove its file catalog |
 

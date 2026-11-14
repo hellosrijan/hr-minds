@@ -547,36 +547,50 @@ List all registered local folders for the active organization.
 
 #### `GET /media/local-scans/{scan_id}/files`
 
-List all candidate resume files discovered inside a registered folder.
+List candidate resume files discovered inside a registered folder with pagination.
 
-**Requires:** `media:read`. **Response** `200 OK`
+**Requires:** `media:read`.
+
+**Query Parameters:**
+- `page` (optional integer, $\ge 1$, default: `1`): Current page number.
+- `page_size` (optional integer, $1 \dots 100$, default: `20`): Number of files per page.
+
+**Response** `200 OK`
 
 ```json
-[
-  {
-    "id": 1,
-    "scan_id": 1,
-    "file_name": "alice_cv.pdf",
-    "relative_path": "alice_cv.pdf",
-    "media_type": "pdf",
-    "file_size_bytes": 1048576,
-    "file_modified_at": "2026-11-14T09:30:00Z",
-    "created": "2026-11-14T10:15:29Z"
-  },
-  {
-    "id": 2,
-    "scan_id": 1,
-    "file_name": "bob_resume.docx",
-    "relative_path": "subfolder/bob_resume.docx",
-    "media_type": "document",
-    "file_size_bytes": 524288,
-    "file_modified_at": "2026-11-14T09:40:00Z",
-    "created": "2026-11-14T10:15:29Z"
-  }
-]
+{
+  "items": [
+    {
+      "id": 1,
+      "scan_id": 1,
+      "file_name": "alice_cv.pdf",
+      "relative_path": "alice_cv.pdf",
+      "file_path": "/Users/hr/resumes/alice_cv.pdf",
+      "media_type": "pdf",
+      "file_size_bytes": 1048576,
+      "file_modified_at": "2026-11-14T09:30:00Z",
+      "created": "2026-11-14T10:15:29Z"
+    },
+    {
+      "id": 2,
+      "scan_id": 1,
+      "file_name": "bob_resume.docx",
+      "relative_path": "subfolder/bob_resume.docx",
+      "file_path": "/Users/hr/resumes/subfolder/bob_resume.docx",
+      "media_type": "document",
+      "file_size_bytes": 524288,
+      "file_modified_at": "2026-11-14T09:40:00Z",
+      "created": "2026-11-14T10:15:29Z"
+    }
+  ],
+  "total": 2,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1
+}
 ```
 
-**Errors:** `404 Local media scan not found`
+**Errors:** `404 Local media scan not found`, `422 Validation Error` (if `page < 1` or `page_size > 100`).
 
 ---
 

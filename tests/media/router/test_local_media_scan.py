@@ -37,7 +37,12 @@ async def test_register_scan_list_rescan_delete(client, signup, tmp_path):
 
     assert str(tmp_path / "sub" / "c.png") in {d["file_path"] for e, d in events if e == "progress"}
 
-    files = (await client.get(f"{SCANS}/{scan_id}/files", headers=headers)).json()
+    page_data = (await client.get(f"{SCANS}/{scan_id}/files", headers=headers)).json()
+    assert page_data["total"] == 3
+    assert page_data["page"] == 1
+    assert page_data["page_size"] == 20
+    assert page_data["total_pages"] == 1
+    files = page_data["items"]
     assert sorted(f["relative_path"] for f in files) == ["a.pdf", "b.docx", "sub/c.png"]
     assert sorted(f["file_path"] for f in files) == [str(tmp_path / p) for p in ["a.pdf", "b.docx", "sub/c.png"]]
 
@@ -57,3 +62,65 @@ async def test_bad_folder_and_unknown_scan_fail_before_streaming(client, signup,
     assert r.status_code == 422
 
     assert (await client.post(f"{SCANS}/999/scan", headers=headers)).status_code == 404
+
+
+async def test_list_scan_files_pagination(client, signup, tmp_path):
+    headers, _ = await signup("alice")
+    for name in ["1.pdf", "2.pdf", "3.pdf", "4.pdf", "5.pdf"]:
+        (tmp_path / name).write_bytes(b"x")
+
+    r = await client.post(SCANS, json={"name": "Paged Resumes", "folder_path": str(tmp_path)}, headers=headers)
+    assert r.status_code == 201
+    scan_id = sse_events(r.text)[0][1]["id"]
+
+    # Default pagination (page=1, page_size=20)
+    res = await client.get(f"{SCANS}/{scan_id}/files", headers=headers)
+    assert res.status_code == 200
+    default_data = res.json()
+    assert default_data["total"] == 5
+    assert default_data["page"] == 1
+    assert default_data["page_size"] == 20
+    assert default_data["total_pages"] == 1
+    assert len(default_data["items"]) == 5
+
+    # Page 1 with page_size=2
+    res = await client.get(f"{SCANS}/{scan_id}/files?page=1&page_size=2", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total"] == 5
+    assert data["page"] == 1
+    assert data["page_size"] == 2
+    assert data["total_pages"] == 3
+    assert len(data["items"]) == 2
+    assert [f["file_name"] for f in data["items"]] == ["1.pdf", "2.pdf"]
+
+    # Page 2 with page_size=2
+    res = await client.get(f"{SCANS}/{scan_id}/files?page=2&page_size=2", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["page"] == 2
+    assert len(data["items"]) == 2
+    assert [f["file_name"] for f in data["items"]] == ["3.pdf", "4.pdf"]
+
+    # Page 3 with page_size=2 (last page, partial)
+    res = await client.get(f"{SCANS}/{scan_id}/files?page=3&page_size=2", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["page"] == 3
+    assert len(data["items"]) == 1
+    assert [f["file_name"] for f in data["items"]] == ["5.pdf"]
+
+    # Page 4 (out of bounds) -> empty items, correct metadata
+    res = await client.get(f"{SCANS}/{scan_id}/files?page=4&page_size=2", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["page"] == 4
+    assert len(data["items"]) == 0
+    assert data["total"] == 5
+    assert data["total_pages"] == 3
+
+    # Invalid query parameters -> 422
+    assert (await client.get(f"{SCANS}/{scan_id}/files?page=0", headers=headers)).status_code == 422
+    assert (await client.get(f"{SCANS}/{scan_id}/files?page_size=0", headers=headers)).status_code == 422
+    assert (await client.get(f"{SCANS}/{scan_id}/files?page_size=101", headers=headers)).status_code == 422
+
