@@ -10,7 +10,7 @@ src/hr_minds/
 │   ├── db.py               # async engine, AsyncSessionLocal, Base, TimestampMixin, get_db
 │   ├── features.py         # FeatureSlug enum + FEATURES registry — see [Features](Features)
 │   ├── logging.py          # setup_logging(): text to stdout, JSON to logs/app.log
-│   └── routers.py          # api_router (prefix /api/v1) — mounts auth and media routers
+│   └── routers.py          # api_router (prefix /api/v1) — mounts auth, media and conversation routers
 ├── auth/                   # Authentication & RBAC implementation — see [Authentication](Authentication), [RBAC](RBAC)
 │   ├── router/  schemas/  services/   # each split into auth.py and rbac.py
 │   ├── dependencies.py     # get_current_user, org-scoped require()
@@ -24,10 +24,16 @@ src/hr_minds/
 │   ├── services/           # scanner.py (walk, upsert, SSE scan_stream, startup scan_all), local_media_scan.py
 │   ├── exceptions.py       # LocalMediaScanNotFound (404), MediaFolderInvalid (422)
 │   └── models/             # LocalMediaScan, LocalMedia, MediaType, EXTENSION_MAP
+├── conversation/           # Central chat session storage — see [Conversation](Conversation)
+│   ├── router/             # conversation.py (conversations and their messages)
+│   ├── schemas/            # ConversationCreate/Update/Read, MessageCreate/Read
+│   ├── services/           # conversation.py (CRUD, list_messages, add_message)
+│   ├── exceptions.py       # ConversationNotFound (404)
+│   └── models/             # Conversation, Message, MessageRole
 ├── utils/
 │   └── pagination.py       # PaginatedResponse[T] envelope for paginated list endpoints
 └── migrations/             # Alembic (async)
-tests/                      # pytest, mirrors src/hr_minds (tests/auth/, tests/media/)
+tests/                      # pytest, mirrors src/hr_minds (tests/auth/, tests/media/, tests/conversation/)
 ```
 
 ## Routing

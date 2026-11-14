@@ -30,6 +30,7 @@ In HR Minds, a **Feature** represents a functional domain of the platform. Featu
 | **RBAC: Members** | `members` | **Active** | Invite organization members and manage member roles | `create`, `read`, `update`, `delete` |
 | **RBAC: Roles** | `roles` | **Active** | Create and manage custom organization roles and permissions | `create`, `read`, `update`, `delete` |
 | **Media** | `media` | **Active** | Scan local folders of candidate resumes | `create`, `read`, `update`, `delete` |
+| **Conversation** | `conversation` | **Active** | Chat sessions and messages, private to each user | `create`, `read`, `update`, `delete` |
 | **Recruitment** | `recruitment` | *Roadmap* | Candidate pipeline, job postings, and Agentic RAG filtering | `create`, `read`, `update`, `delete` |
 | **Attendance** | `attendance` | *Roadmap* | Employee check-in, check-out, and shift tracking | `create`, `read`, `update`, `delete` |
 
@@ -54,3 +55,12 @@ For detailed architecture, model relationships, and SSE protocols:
 
 For complete HTTP request and response specifications:
 ➡️ **[API Reference](API-Endpoints)**
+
+### Conversation (Chat Sessions)
+The **Conversation** feature is the central store for chat sessions. Each conversation is private to the user who started it, inside one organization, and holds an ordered list of messages. Other modules can attach a chat to something of theirs through an optional context, without this module depending on them.
+
+For the data model, privacy rules, and the guard against forged assistant messages:
+➡️ **[Conversation Documentation](Conversation)**
+
+For complete HTTP request and response specifications:
+➡️ **[API Reference](API-Endpoints#conversations)**

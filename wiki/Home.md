@@ -14,6 +14,7 @@ HR management and Agentic RAG platform built with FastAPI, async SQLAlchemy, Ale
 | [Features](Features) | Feature registry, permissions model, and system capability catalog |
 | [RBAC](RBAC) | Role-Based Access Control: multi-tenant organization model, custom roles, escalation guards |
 | [Media](Media) | Local resume scanner, host-bound discovery, SSE progress streaming, file cataloging |
+| [Conversation](Conversation) | Central chat store: private sessions, messages, optional context, permissions |
 | [API Reference](API-Endpoints) | Every `/api/v1` endpoint with request/response examples, errors, `X-Org-Id`, and a curl walkthrough |
 | [Database Migrations](Database-Migrations) | Alembic workflow and commands |
 | [License](License) | Project licensing and terms of use (MIT License) |
@@ -26,6 +27,7 @@ HR management and Agentic RAG platform built with FastAPI, async SQLAlchemy, Ale
 | Auth (login, logout) | Done |
 | Organizations & RBAC (roles, members, invitations) | Done |
 | Media (Local folder scanner) | Done — Host-bound directory scanner, SSE streaming, file catalog |
+| Conversation (chat session storage) | Done — Private sessions and messages, storage only; no assistant replies yet |
 | Recruitment (Agentic RAG resume filtering) | Planned |
 
 ## License

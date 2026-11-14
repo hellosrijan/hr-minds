@@ -6,6 +6,7 @@ class FeatureSlug(StrEnum):
     MEMBERS = "members"
     ROLES = "roles"
     MEDIA = "media"
+    CONVERSATION = "conversation"
     # RECRUITMENT = "recruitment"
     # ATTENDANCE = "attendance"
 
@@ -23,6 +24,7 @@ FEATURES: dict[FeatureSlug, FeatureInfo] = {
     FeatureSlug.MEMBERS: FeatureInfo("Members", "/members", "Invite members and manage their roles"),
     FeatureSlug.ROLES: FeatureInfo("Roles", "/roles", "Custom roles and their permissions"),
     FeatureSlug.MEDIA: FeatureInfo("Media", "/media", "Scan local folders of candidate resumes"),
+    FeatureSlug.CONVERSATION: FeatureInfo("Conversation", "/conversations", "Chat sessions with the assistant"),
     # FeatureSlug.RECRUITMENT: FeatureInfo("Recruitment", "/recruitment", "Candidates and hiring pipeline"),
     # FeatureSlug.ATTENDANCE: FeatureInfo("Attendance", "/attendance", "Employee check-in and check-out"),
 }

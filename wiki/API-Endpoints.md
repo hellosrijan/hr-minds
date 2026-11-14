@@ -4,7 +4,7 @@ Every endpoint of the HR Minds API, with request and response examples. The exam
 
 Interactive docs, generated from the code, are served at `/docs` (Swagger UI) and `/redoc`.
 
-**Contents:** [Conventions](#conventions) · [Auth](#auth) · [RBAC](#rbac) ([Features](#features) · [Organizations](#organizations) · [Roles](#roles) · [Members](#members) · [Invitations](#invitations)) · [Media](#media) ([Local Scans](#local-media-scans)) · [Walkthrough](#walkthrough-curl)
+**Contents:** [Conventions](#conventions) · [Auth](#auth) · [RBAC](#rbac) ([Features](#features) · [Organizations](#organizations) · [Roles](#roles) · [Members](#members) · [Invitations](#invitations)) · [Media](#media) ([Local Scans](#local-media-scans)) · [Conversations](#conversations) · [Walkthrough](#walkthrough-curl)
 
 ---
 
@@ -40,7 +40,7 @@ Organization IDs look like `org_<name>_<10 random characters>`. They never chang
 
 ### Pagination
 
-List endpoints that can return many rows are paginated and return an envelope instead of a bare array. Currently this is `GET /media/local-scans/{scan_id}/files`.
+List endpoints that can return many rows are paginated and return an envelope instead of a bare array. Currently these are `GET /media/local-scans/{scan_id}/files`, `GET /conversations` and `GET /conversations/{conversation_id}/messages` (the last defaults to `page_size=50`).
 
 | Query parameter | Default | Limits |
 | :--- | :--- | :--- |
@@ -60,7 +60,7 @@ List endpoints that can return many rows are paginated and return an envelope in
 - `total` counts every matching row, not just this page. `total_pages` is `ceil(total / page_size)`, or `0` when there are no rows.
 - A page past the end is not an error: `200 OK` with empty `items` and the real `total` and `total_pages`.
 - `page < 1`, `page_size < 1` or `page_size > 100` returns `422 Validation Error`.
-- Rows come back in a fixed order (files are sorted by `relative_path`), so pages never overlap.
+- Rows come back in a fixed order (files by `relative_path`, conversations by latest activity, messages oldest first), so pages never overlap.
 
 ### Permissions
 
@@ -71,6 +71,7 @@ Each organization endpoint requires a `feature:action` permission, e.g. `roles:c
 | `members` | Viewing members, inviting, changing roles, removing |
 | `roles` | Viewing and editing custom roles |
 | `media` | Registering local resume folders, triggering scans, listing discovered files, deleting scans |
+| `conversation` | Starting, listing, renaming and deleting your chats, and reading and adding their messages |
 
 Actions are always `create`, `read`, `update`, `delete`. [`GET /features`](#get-features) lists what is currently available.
 
@@ -653,6 +654,171 @@ Remove a registered folder and delete all its discovered file records from the d
 **Requires:** `media:delete`. **Response:** `204 No Content`.
 
 **Errors:** `404 Local media scan not found`
+
+---
+
+## Conversations
+
+Chat sessions and their messages. All endpoints require `Authorization: Bearer <access_token>` and act on the organization in `X-Org-Id` (or your own). A conversation is **private to the user who started it**, inside the organization that was active then: other members, including the organization owner, get `404` for it. Lists are [paginated](#pagination). More in the [Conversation](Conversation) page.
+
+#### `POST /conversations`
+
+Start a conversation. Every field is optional; `context_type` and `context_id` must be sent together and say what the chat is about.
+
+**Requires:** `conversation:create`.
+
+```json
+{
+  "title": "Backend hiring",
+  "context_type": "job_posting",
+  "context_id": "12"
+}
+```
+
+**Response** `201 Created`
+
+```json
+{
+  "id": 1,
+  "title": "Backend hiring",
+  "context_type": "job_posting",
+  "context_id": "12",
+  "last_message_at": "2026-11-14T12:01:58.051961Z",
+  "created": "2026-11-14T12:01:58.051961Z",
+  "modified": "2026-11-14T12:01:58.051961Z"
+}
+```
+
+**Errors:** `422 Validation Error` (only one of `context_type` / `context_id`, empty strings, `title` over 255 characters)
+
+---
+
+#### `GET /conversations`
+
+Your conversations, most recent activity first, paginated.
+
+**Requires:** `conversation:read`.
+
+**Query Parameters:**
+- `page` (optional integer, `>= 1`, default `1`) and `page_size` (optional integer, `1` to `100`, default `20`).
+- `context_type` (optional string): only conversations of this kind.
+- `context_id` (optional string): only conversations about this id.
+
+**Response** `200 OK`
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "title": "Backend hiring",
+      "context_type": "job_posting",
+      "context_id": "12",
+      "last_message_at": "2026-11-14T12:01:58.083741Z",
+      "created": "2026-11-14T12:01:58.051961Z",
+      "modified": "2026-11-14T12:01:58.083741Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1
+}
+```
+
+---
+
+#### `GET /conversations/{conversation_id}`
+
+One conversation, same shape as above.
+
+**Requires:** `conversation:read`. **Response** `200 OK`
+
+**Errors:** `404 Conversation not found` (also for someone else's conversation)
+
+---
+
+#### `PATCH /conversations/{conversation_id}`
+
+Rename a conversation.
+
+**Requires:** `conversation:update`.
+
+```json
+{ "title": "Backend hiring, round 2" }
+```
+
+**Response** `200 OK` (the updated conversation).
+
+**Errors:** `404 Conversation not found`, `422 Validation Error` (empty or over-long `title`)
+
+---
+
+#### `DELETE /conversations/{conversation_id}`
+
+Delete a conversation and all its messages.
+
+**Requires:** `conversation:delete`. **Response:** `204 No Content`.
+
+**Errors:** `404 Conversation not found`
+
+---
+
+#### `GET /conversations/{conversation_id}/messages`
+
+The messages of a conversation, **oldest first**, paginated (`page_size` defaults to `50`, maximum `100`).
+
+**Requires:** `conversation:read`. **Response** `200 OK`
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "conversation_id": 1,
+      "role": "user",
+      "content": "We need a backend engineer with Python and Postgres.",
+      "tool_calls": null,
+      "tool_call_id": null,
+      "tool_name": null,
+      "model": null,
+      "input_tokens": null,
+      "output_tokens": null,
+      "created": "2026-11-14T12:01:58.083741Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 50,
+  "total_pages": 1
+}
+```
+
+`role` is `user`, `assistant` or `tool`. The other fields are filled only on assistant and tool turns.
+
+**Errors:** `404 Conversation not found`
+
+---
+
+#### `POST /conversations/{conversation_id}/messages`
+
+Add a message. It is always stored as a `user` message, and the conversation's `last_message_at` moves forward. The only accepted field is `content` (trimmed, 1 to 20,000 characters); anything else, including `role`, is rejected so clients can't forge assistant or tool turns.
+
+**Requires:** `conversation:create`.
+
+```json
+{ "content": "We need a backend engineer with Python and Postgres." }
+```
+
+**Response** `201 Created` (the stored message, same shape as an item above).
+
+**Errors:**
+
+| Status | Detail | When |
+| :--- | :--- | :--- |
+| `404` | `Conversation not found` | Unknown id, or not your conversation |
+| `422` | `Extra inputs are not permitted` | The body has a field other than `content`, e.g. `role` |
+| `422` | validation error | `content` empty, only whitespace, or over 20,000 characters |
 
 ---
 
