@@ -19,7 +19,7 @@ cd hr-minds
 cp .env.example .env
 # Edit .env to set POSTGRES_PASSWORD and SECRET_KEY
 
-# 3. Start PostgreSQL container
+# 3. Start the PostgreSQL and Qdrant (vector database) containers
 docker compose up -d
 
 # 4. Install dependencies
@@ -165,3 +165,4 @@ Configured in `src/hr_minds/settings/config.py` with `.env` interpolation:
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | optional | Reserved for future S3 media upload |
 | `AWS_S3_BUCKET_NAME` / `AWS_REGION` | optional | Reserved for future S3 media upload |
 | `OPENAI_API_KEY` | optional | Reserved for Agentic RAG resume filtering |
+| `QDRANT_URL` | `http://localhost:6333` | Qdrant vector database for resume search (dashboard at `/dashboard`); Docker Compose also reads optional `QDRANT_PORT` |

@@ -83,7 +83,7 @@ hr-minds/
 │       └── migrations/          # Alembic database migrations
 │           └── env.py           # [Custom] Alembic environment & metadata setup
 ├── tests/                       # pytest (uses an hr_minds_test database)
-├── docker-compose.yml           # PostgreSQL service
+├── docker-compose.yml           # PostgreSQL and Qdrant services
 ├── alembic.ini                  # Alembic configuration
 ├── .env.example                 # Environment variable template
 ├── pyproject.toml               # Project metadata & dependencies
@@ -122,11 +122,13 @@ POSTGRES_DB=hr_minds
 DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
 ```
 
-### 2. Start PostgreSQL
+### 2. Start PostgreSQL and Qdrant
 
 ```bash
 docker compose up -d
 ```
+
+Qdrant (the vector database for resume search) serves its dashboard at <http://localhost:6333/dashboard>.
 
 ### 3. Install Dependencies
 
@@ -192,6 +194,7 @@ All settings are loaded from `.env`:
 | `AWS_S3_BUCKET_NAME` | *optional* | S3 bucket for uploads |
 | `AWS_REGION` | `us-east-1` | AWS region |
 | `OPENAI_API_KEY` | *optional* | OpenAI API key |
+| `QDRANT_URL` | `http://localhost:6333` | Qdrant vector database URL |
 
 > ⚠️ Never commit your `.env` file. Use `.env.example` for shared templates.
 

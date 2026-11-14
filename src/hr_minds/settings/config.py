@@ -43,6 +43,7 @@ class Settings(BaseSettings):
 
     # --- AI & Agentic RAG Configuration ---
     OPENAI_API_KEY: str | None = None
+    QDRANT_URL: str = "http://localhost:6333"
 
     model_config = SettingsConfigDict(
         env_file=".env",

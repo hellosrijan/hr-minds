@@ -124,3 +124,23 @@ async def test_list_scan_files_pagination(client, signup, tmp_path):
     assert (await client.get(f"{SCANS}/{scan_id}/files?page_size=0", headers=headers)).status_code == 422
     assert (await client.get(f"{SCANS}/{scan_id}/files?page_size=101", headers=headers)).status_code == 422
 
+
+async def test_rescan_prunes_only_missing_files(client, signup, tmp_path):
+    headers, _ = await signup("alice")
+    for name in ["a.pdf", "b.pdf", "c.pdf"]:
+        (tmp_path / name).write_bytes(b"x")
+    r = await client.post(SCANS, json={"name": "Resumes", "folder_path": str(tmp_path)}, headers=headers)
+    scan_id = sse_events(r.text)[0][1]["id"]
+
+    (tmp_path / "a.pdf").unlink()
+    (tmp_path / "d.pdf").write_bytes(b"x")
+    r = await client.post(f"{SCANS}/{scan_id}/scan", headers=headers)
+    summary = sse_events(r.text)[-1][1]
+    assert (summary["total"], summary["removed"]) == (3, 1)
+
+    files = (await client.get(f"{SCANS}/{scan_id}/files", headers=headers)).json()["items"]
+    assert sorted(f["relative_path"] for f in files) == ["b.pdf", "c.pdf", "d.pdf"]
+
+    r = await client.post(f"{SCANS}/{scan_id}/scan", headers=headers)  # nothing changed
+    assert sse_events(r.text)[-1][1]["removed"] == 0
+

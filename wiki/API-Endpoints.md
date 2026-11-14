@@ -38,6 +38,30 @@ X-Org-Id: org_alice_gqbwyaynhh
 
 Organization IDs look like `org_<name>_<10 random characters>`. They never change, even if the organization is renamed.
 
+### Pagination
+
+List endpoints that can return many rows are paginated and return an envelope instead of a bare array. Currently this is `GET /media/local-scans/{scan_id}/files`.
+
+| Query parameter | Default | Limits |
+| :--- | :--- | :--- |
+| `page` | `1` | `>= 1` (1-based) |
+| `page_size` | `20` | `1` to `100` |
+
+```json
+{
+  "items": [ /* the files on this page */ ],
+  "total": 5,
+  "page": 2,
+  "page_size": 2,
+  "total_pages": 3
+}
+```
+
+- `total` counts every matching row, not just this page. `total_pages` is `ceil(total / page_size)`, or `0` when there are no rows.
+- A page past the end is not an error: `200 OK` with empty `items` and the real `total` and `total_pages`.
+- `page < 1`, `page_size < 1` or `page_size > 100` returns `422 Validation Error`.
+- Rows come back in a fixed order (files are sorted by `relative_path`), so pages never overlap.
+
 ### Permissions
 
 Each organization endpoint requires a `feature:action` permission, e.g. `roles:create`, listed under **Requires** below. The organization **owner** has every permission. Other members have the permissions of their single role.

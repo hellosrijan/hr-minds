@@ -21,7 +21,7 @@ Scanner Engine (_walk)
       ▼
 PostgreSQL Database
   • Upserts LocalMedia records (batch size = 500)
-  • Prunes deleted files (relative_path NOT IN found)
+  • Prunes deleted files (last_seen_at older than this scan)
   • Updates file modification timestamp & scan metadata
       │
       ▼
@@ -109,6 +109,7 @@ Represents a single discovered resume file within a scan folder:
 | `media_type` | `String(20)` | Enum: `pdf`, `document`, or `image` |
 | `file_size_bytes` | `BigInteger` | File size in bytes |
 | `file_modified_at` | `DateTime(timezone=True)` | Filesystem modification time (`st_mtime`) in UTC |
+| `last_seen_at` | `DateTime(timezone=True)` | Start time of the last scan that still saw the file; older rows are pruned |
 | `created` / `modified` | `DateTime(timezone=True)` | Audit timestamps |
 
 **Unique Constraint:**
@@ -124,10 +125,12 @@ Represents a single discovered resume file within a scan folder:
 1. **Batch Upserts (`BATCH_SIZE = 500`)**:
    - Files are discovered asynchronously in a worker thread (`asyncio.to_thread(_walk)`).
    - Rows are upserted into PostgreSQL using `insert(LocalMedia).on_conflict_do_update`.
-   - If a file already exists in the scan, its `file_size_bytes` and `file_modified_at` are refreshed in place.
+   - If a file already exists in the scan, its `file_size_bytes`, `file_modified_at` and `last_seen_at` are refreshed in place.
 
 2. **Automatic Pruning**:
-   - After upserting found files, the scanner issues a `DELETE FROM local_media WHERE scan_id = :id AND relative_path NOT IN (:found_paths)`.
+   - Each scan captures one timestamp when it starts and writes it to `last_seen_at` on every file it upserts.
+   - After the last batch, the scanner issues a `DELETE FROM local_media WHERE scan_id = :id AND last_seen_at < :scan_started_at`, so any file the scan did not see is removed.
+   - This sends no list of paths to the database, so it works for any folder size. (An earlier `relative_path NOT IN (...)` version failed above ~32,767 files, the PostgreSQL bind-parameter limit.)
    - Files deleted from the local disk are automatically purged from the database, and the count is reported in the scan summary event.
 
 3. **Incremental RAG Preparation**:

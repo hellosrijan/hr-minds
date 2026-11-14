@@ -48,6 +48,8 @@ class LocalMedia(Base, TimestampMixin):
     media_type: Mapped[MediaType] = mapped_column(String(20))
     file_size_bytes: Mapped[int] = mapped_column(BigInteger)
     file_modified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Stamped by every scan that still sees the file; rows older than the current scan are pruned.
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Eager-loaded so `file_path` works — async sessions can't lazy-load on attribute access.
     # selectin, not joined: one extra `WHERE id IN (...)` query per load instead of

@@ -62,6 +62,7 @@ async def _upsert(db: AsyncSession, rows: list[dict]) -> None:
         set_={
             "file_size_bytes": stmt.excluded.file_size_bytes,
             "file_modified_at": stmt.excluded.file_modified_at,
+            "last_seen_at": stmt.excluded.last_seen_at,
         },
     )
     await db.execute(stmt)
@@ -94,12 +95,14 @@ async def scan_stream(
         yield {"event": "error", "detail": f"Folder not found: {scan.folder_path}"}
         return
 
+    # One value for the whole scan: func.now() is the transaction start, which differs per committed batch.
+    started = datetime.now(timezone.utc)
     rows = await asyncio.to_thread(_walk, scan)
     counts: dict[str, int] = {t: 0 for t in MediaType}
     root = Path(scan.folder_path)
 
     for start in range(0, len(rows), BATCH_SIZE):
-        batch = rows[start : start + BATCH_SIZE]
+        batch = [{**r, "last_seen_at": started} for r in rows[start : start + BATCH_SIZE]]
         await _upsert(db, batch)
         for i, row in enumerate(batch, start + 1):
             counts[row["media_type"]] += 1
@@ -111,12 +114,9 @@ async def scan_stream(
                 "count": i,
             }
 
-    # ponytail: NOT IN with every found path; switch to a scan-run marker column if folders reach ~100k files
+    # Anything this scan didn't stamp is gone from disk.
     result = await db.execute(
-        delete(LocalMedia).where(
-            LocalMedia.scan_id == scan.id,
-            LocalMedia.relative_path.notin_([r["relative_path"] for r in rows]),
-        )
+        delete(LocalMedia).where(LocalMedia.scan_id == scan.id, LocalMedia.last_seen_at < started)
     )
     # The OS can be upgraded between scans; the hostname stays the folder's identity.
     info = system_info()
