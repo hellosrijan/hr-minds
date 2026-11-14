@@ -22,7 +22,7 @@ class FeatureInfo:
 FEATURES: dict[FeatureSlug, FeatureInfo] = {
     FeatureSlug.MEMBERS: FeatureInfo("Members", "/members", "Invite members and manage their roles"),
     FeatureSlug.ROLES: FeatureInfo("Roles", "/roles", "Custom roles and their permissions"),
-    # FeatureSlug.MEDIA: FeatureInfo("Media", "/media", "Resume and document uploads"),
+    FeatureSlug.MEDIA: FeatureInfo("Media", "/media", "Scan local folders of candidate resumes"),
     # FeatureSlug.RECRUITMENT: FeatureInfo("Recruitment", "/recruitment", "Candidates and hiring pipeline"),
     # FeatureSlug.ATTENDANCE: FeatureInfo("Attendance", "/attendance", "Employee check-in and check-out"),
 }

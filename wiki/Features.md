@@ -29,7 +29,7 @@ In HR Minds, a **Feature** represents a functional domain of the platform. Featu
 | :--- | :--- | :--- | :--- | :--- |
 | **RBAC: Members** | `members` | **Active** | Invite organization members and manage member roles | `create`, `read`, `update`, `delete` |
 | **RBAC: Roles** | `roles` | **Active** | Create and manage custom organization roles and permissions | `create`, `read`, `update`, `delete` |
-| **Media** | `media` | *Upcoming* | Resume and employee document uploads | `create`, `read`, `update`, `delete` |
+| **Media** | `media` | **Active** | Scan local folders of candidate resumes | `create`, `read`, `update`, `delete` |
 | **Recruitment** | `recruitment` | *Roadmap* | Candidate pipeline, job postings, and Agentic RAG filtering | `create`, `read`, `update`, `delete` |
 | **Attendance** | `attendance` | *Roadmap* | Employee check-in, check-out, and shift tracking | `create`, `read`, `update`, `delete` |
 
@@ -42,6 +42,15 @@ The first fully active feature set in HR Minds is **RBAC** (encompassing `roles`
 
 For detailed architecture, model relationships, and authorization rules:
 ➡️ **[RBAC Documentation](RBAC)**
+
+For complete HTTP request and response specifications:
+➡️ **[API Reference](API-Endpoints)**
+
+### Media (Local Resume Scanner)
+The **Media** feature provides filesystem-based candidate resume discovery and indexing. Organizations can register local directories containing resumes (PDFs, Word documents, images), track filesystem modifications, and stream scanning operations via Server-Sent Events (SSE).
+
+For detailed architecture, model relationships, and SSE protocols:
+➡️ **[Media Documentation](Media)**
 
 For complete HTTP request and response specifications:
 ➡️ **[API Reference](API-Endpoints)**

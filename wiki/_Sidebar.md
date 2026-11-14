@@ -6,5 +6,6 @@
 - [Authentication](Authentication)
 - [Features](Features)
   - [RBAC](RBAC)
+  - [Media](Media)
 - [API Reference](API-Endpoints)
 - [Database Migrations](Database-Migrations)

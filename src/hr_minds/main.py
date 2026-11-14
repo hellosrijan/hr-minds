@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from hr_minds.media.services.scanner import scan_all
+from hr_minds.settings.db import AsyncSessionLocal
 from hr_minds.settings.logging import setup_logging
 from hr_minds.settings.routers import api_router
 
@@ -19,6 +21,9 @@ async def lifespan(app: FastAPI):
     - Code after `yield` runs once when the server stops.
     """
     setup_logging()
+
+    async with AsyncSessionLocal() as db:
+        await scan_all(db)
 
     logger.info("API Service has successfully started up and is ready for requests")
     yield

@@ -7,7 +7,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # [Custom] Import Base, settings, and all models so Alembic detects them
-from hr_minds.auth.models import User  # noqa: F401
+from hr_minds.auth.models import *  # noqa: F401, F403
+from hr_minds.media.models import *  # noqa: F401
 from hr_minds.settings.config import settings
 from hr_minds.settings.db import Base
 
