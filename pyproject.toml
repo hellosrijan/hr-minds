@@ -32,7 +32,9 @@ entrypoint = "hr_minds.main:app"
 
 [dependency-groups]
 dev = [
+    "pymupdf4llm>=2.1",
     "pytest>=9.2.0",
+    "python-docx>=1.2.0",
     "questionary>=2.1.1",
 ]
 
@@ -40,3 +42,4 @@ dev = [
 testpaths = ["tests"]
 # Test files mirror src/hr_minds, so names repeat (router/test_auth.py, services/test_auth.py).
 addopts = "--import-mode=importlib"
+pythonpath = ["."]

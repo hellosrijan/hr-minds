@@ -112,13 +112,13 @@ shortlist they can trust, with the evidence for each pick, while staying in cont
     - [x] When the login expires, clear it and say to log in again; logout works with an expired login
 
 
-- [ ] 12. Prepare a small test set
+- [x] 12. Prepare a small test set
   - Description: Just enough fictional resumes and postings with known right answers to check that the RAG works.
   - Goal: Any ranking can be scored against known answers.
   - Subtasks:
-    - [ ] Write a script that generates about 30 fictional resumes (PDF and docx)
-    - [ ] Define 3 job postings and list the resumes that should match each one
-    - [ ] Write a helper that compares a ranking with the expected matches (recall@k)
+    - [x] Write a script that generates about 30 fictional resumes (PDF and docx)
+    - [x] Define 3 job postings and list the resumes that should match each one
+    - [x] Write a helper that compares a ranking with the expected matches (recall@k)
 
 - [ ] 13. Read the text and score a baseline (RAG)
   - Description: Read the text of every test resume and score each one against each posting, without search.
