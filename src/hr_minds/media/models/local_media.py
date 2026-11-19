@@ -3,7 +3,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, UniqueConstraint, select
+from sqlalchemy import BigInteger, DateTime, ForeignKey, String, UniqueConstraint, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,6 +48,8 @@ class LocalMedia(Base, TimestampMixin):
     media_type: Mapped[MediaType] = mapped_column(String(20))
     file_size_bytes: Mapped[int] = mapped_column(BigInteger)
     file_modified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Stamped by every scan that still sees the file; rows older than the current scan are pruned.
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Eager-loaded so `file_path` works — async sessions can't lazy-load on attribute access.
     # selectin, not joined: one extra `WHERE id IN (...)` query per load instead of
@@ -60,5 +62,46 @@ class LocalMedia(Base, TimestampMixin):
         return str(Path(self.scan.folder_path) / self.relative_path)
 
     @classmethod
-    async def list_for_scan(cls, db: AsyncSession, scan_id: int) -> list["LocalMedia"]:
-        return list(await db.scalars(select(cls).where(cls.scan_id == scan_id).order_by(cls.id)))
+    async def list_for_scan(
+        cls,
+        db: AsyncSession,
+        scan_id: int,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list["LocalMedia"], int]:
+        total = (
+            await db.scalar(
+                select(func.count()).select_from(cls).where(cls.scan_id == scan_id)
+            )
+        ) or 0
+        items = list(
+            await db.scalars(
+                select(cls)
+                .where(cls.scan_id == scan_id)
+                .order_by(cls.relative_path, cls.id)
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        return items, total
+
+    @classmethod
+    async def list_all_for_scan(cls, db: AsyncSession, scan_id: int) -> list["LocalMedia"]:
+        return list(await db.scalars(select(cls).where(cls.scan_id == scan_id).order_by(cls.relative_path, cls.id)))
+
+
+    @classmethod
+    async def list_for_org(
+        cls, db: AsyncSession, org_id: int, page: int = 1, page_size: int = 20
+    ) -> tuple[list["LocalMedia"], int]:
+        total = (await db.scalar(select(func.count()).select_from(cls).where(cls.org_id == org_id))) or 0
+        items = list(
+            await db.scalars(
+                select(cls)
+                .where(cls.org_id == org_id)
+                .order_by(cls.id)
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        return items, total

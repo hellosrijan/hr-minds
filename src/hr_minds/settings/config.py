@@ -42,7 +42,15 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
 
     # --- AI & Agentic RAG Configuration ---
-    OPENAI_API_KEY: str | None = None
+    # Any OpenAI-compatible chat endpoint (OmniRoute, Ollama, Gemini's compatibility URL).
+    LLM_BASE_URL: str | None = None
+    LLM_API_KEY: str | None = None
+    # One model per capability on that endpoint. LLM_MODEL is the default (chat agent);
+    # REASONING (screening) and FAST (bulk extraction) fall back to it when unset.
+    LLM_MODEL: str | None = None
+    LLM_MODEL_FAST: str | None = None
+    LLM_MODEL_REASONING: str | None = None
+    QDRANT_URL: str = "http://localhost:6333"
 
     model_config = SettingsConfigDict(
         env_file=".env",

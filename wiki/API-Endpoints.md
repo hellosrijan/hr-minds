@@ -4,7 +4,7 @@ Every endpoint of the HR Minds API, with request and response examples. The exam
 
 Interactive docs, generated from the code, are served at `/docs` (Swagger UI) and `/redoc`.
 
-**Contents:** [Conventions](#conventions) · [Auth](#auth) · [RBAC](#rbac) ([Features](#features) · [Organizations](#organizations) · [Roles](#roles) · [Members](#members) · [Invitations](#invitations)) · [Media](#media) ([Local Scans](#local-media-scans)) · [Walkthrough](#walkthrough-curl)
+**Contents:** [Conventions](#conventions) · [Auth](#auth) · [RBAC](#rbac) ([Features](#features) · [Organizations](#organizations) · [Roles](#roles) · [Members](#members) · [Invitations](#invitations)) · [Media](#media) ([Local Scans](#local-media-scans)) · [Conversations](#conversations) · [Recruitment](#recruitment) ([Job Postings](#job-postings) · [Candidates](#candidates)) · [Walkthrough](#walkthrough-curl)
 
 ---
 
@@ -38,6 +38,30 @@ X-Org-Id: org_alice_gqbwyaynhh
 
 Organization IDs look like `org_<name>_<10 random characters>`. They never change, even if the organization is renamed.
 
+### Pagination
+
+List endpoints that can return many rows are paginated and return an envelope instead of a bare array. Currently these are `GET /media/local-scans/{scan_id}/files`, `GET /conversations`, `GET /conversations/{conversation_id}/messages` (defaults to `page_size=50`), `GET /recruitment/job-postings` and `GET /recruitment/job-postings/{id}/candidates`.
+
+| Query parameter | Default | Limits |
+| :--- | :--- | :--- |
+| `page` | `1` | `>= 1` (1-based) |
+| `page_size` | `20` | `1` to `100` |
+
+```json
+{
+  "items": [ /* the files on this page */ ],
+  "total": 5,
+  "page": 2,
+  "page_size": 2,
+  "total_pages": 3
+}
+```
+
+- `total` counts every matching row, not just this page. `total_pages` is `ceil(total / page_size)`, or `0` when there are no rows.
+- A page past the end is not an error: `200 OK` with empty `items` and the real `total` and `total_pages`.
+- `page < 1`, `page_size < 1` or `page_size > 100` returns `422 Validation Error`.
+- Rows come back in a fixed order (files by `relative_path`, conversations by latest activity, messages oldest first), so pages never overlap.
+
 ### Permissions
 
 Each organization endpoint requires a `feature:action` permission, e.g. `roles:create`, listed under **Requires** below. The organization **owner** has every permission. Other members have the permissions of their single role.
@@ -47,6 +71,8 @@ Each organization endpoint requires a `feature:action` permission, e.g. `roles:c
 | `members` | Viewing members, inviting, changing roles, removing |
 | `roles` | Viewing and editing custom roles |
 | `media` | Registering local resume folders, triggering scans, listing discovered files, deleting scans |
+| `conversation` | Starting, listing, renaming and deleting your chats, and reading and adding their messages |
+| `recruitment` | Job postings and skills, and selecting, viewing and moving candidates through the pipeline |
 
 Actions are always `create`, `read`, `update`, `delete`. [`GET /features`](#get-features) lists what is currently available.
 
@@ -547,36 +573,50 @@ List all registered local folders for the active organization.
 
 #### `GET /media/local-scans/{scan_id}/files`
 
-List all candidate resume files discovered inside a registered folder.
+List candidate resume files discovered inside a registered folder with pagination.
 
-**Requires:** `media:read`. **Response** `200 OK`
+**Requires:** `media:read`.
+
+**Query Parameters:**
+- `page` (optional integer, $\ge 1$, default: `1`): Current page number.
+- `page_size` (optional integer, $1 \dots 100$, default: `20`): Number of files per page.
+
+**Response** `200 OK`
 
 ```json
-[
-  {
-    "id": 1,
-    "scan_id": 1,
-    "file_name": "alice_cv.pdf",
-    "relative_path": "alice_cv.pdf",
-    "media_type": "pdf",
-    "file_size_bytes": 1048576,
-    "file_modified_at": "2026-11-14T09:30:00Z",
-    "created": "2026-11-14T10:15:29Z"
-  },
-  {
-    "id": 2,
-    "scan_id": 1,
-    "file_name": "bob_resume.docx",
-    "relative_path": "subfolder/bob_resume.docx",
-    "media_type": "document",
-    "file_size_bytes": 524288,
-    "file_modified_at": "2026-11-14T09:40:00Z",
-    "created": "2026-11-14T10:15:29Z"
-  }
-]
+{
+  "items": [
+    {
+      "id": 1,
+      "scan_id": 1,
+      "file_name": "alice_cv.pdf",
+      "relative_path": "alice_cv.pdf",
+      "file_path": "/Users/hr/resumes/alice_cv.pdf",
+      "media_type": "pdf",
+      "file_size_bytes": 1048576,
+      "file_modified_at": "2026-11-14T09:30:00Z",
+      "created": "2026-11-14T10:15:29Z"
+    },
+    {
+      "id": 2,
+      "scan_id": 1,
+      "file_name": "bob_resume.docx",
+      "relative_path": "subfolder/bob_resume.docx",
+      "file_path": "/Users/hr/resumes/subfolder/bob_resume.docx",
+      "media_type": "document",
+      "file_size_bytes": 524288,
+      "file_modified_at": "2026-11-14T09:40:00Z",
+      "created": "2026-11-14T10:15:29Z"
+    }
+  ],
+  "total": 2,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1
+}
 ```
 
-**Errors:** `404 Local media scan not found`
+**Errors:** `404 Local media scan not found`, `422 Validation Error` (if `page < 1` or `page_size > 100`).
 
 ---
 
@@ -615,6 +655,495 @@ Remove a registered folder and delete all its discovered file records from the d
 **Requires:** `media:delete`. **Response:** `204 No Content`.
 
 **Errors:** `404 Local media scan not found`
+
+---
+
+## Conversations
+
+Chat sessions and their messages. All endpoints require `Authorization: Bearer <access_token>` and act on the organization in `X-Org-Id` (or your own). A conversation is **private to the user who started it**, inside the organization that was active then: other members, including the organization owner, get `404` for it. Lists are [paginated](#pagination). More in the [Conversation](Conversation) page.
+
+#### `POST /conversations`
+
+Start a conversation. Every field is optional; `context_type` and `context_id` must be sent together and say what the chat is about.
+
+**Requires:** `conversation:create`.
+
+```json
+{
+  "title": "Backend hiring",
+  "context_type": "job_posting",
+  "context_id": "12"
+}
+```
+
+**Response** `201 Created`
+
+```json
+{
+  "id": 1,
+  "title": "Backend hiring",
+  "context_type": "job_posting",
+  "context_id": "12",
+  "last_message_at": "2026-11-14T12:01:58.051961Z",
+  "created": "2026-11-14T12:01:58.051961Z",
+  "modified": "2026-11-14T12:01:58.051961Z"
+}
+```
+
+**Errors:** `422 Validation Error` (only one of `context_type` / `context_id`, empty strings, `title` over 255 characters)
+
+---
+
+#### `GET /conversations`
+
+Your conversations, most recent activity first, paginated.
+
+**Requires:** `conversation:read`.
+
+**Query Parameters:**
+- `page` (optional integer, `>= 1`, default `1`) and `page_size` (optional integer, `1` to `100`, default `20`).
+- `context_type` (optional string): only conversations of this kind.
+- `context_id` (optional string): only conversations about this id.
+
+**Response** `200 OK`
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "title": "Backend hiring",
+      "context_type": "job_posting",
+      "context_id": "12",
+      "last_message_at": "2026-11-14T12:01:58.083741Z",
+      "created": "2026-11-14T12:01:58.051961Z",
+      "modified": "2026-11-14T12:01:58.083741Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1
+}
+```
+
+---
+
+#### `GET /conversations/{conversation_id}`
+
+One conversation, same shape as above.
+
+**Requires:** `conversation:read`. **Response** `200 OK`
+
+**Errors:** `404 Conversation not found` (also for someone else's conversation)
+
+---
+
+#### `PATCH /conversations/{conversation_id}`
+
+Rename a conversation.
+
+**Requires:** `conversation:update`.
+
+```json
+{ "title": "Backend hiring, round 2" }
+```
+
+**Response** `200 OK` (the updated conversation).
+
+**Errors:** `404 Conversation not found`, `422 Validation Error` (empty or over-long `title`)
+
+---
+
+#### `DELETE /conversations/{conversation_id}`
+
+Delete a conversation and all its messages.
+
+**Requires:** `conversation:delete`. **Response:** `204 No Content`.
+
+**Errors:** `404 Conversation not found`
+
+---
+
+#### `GET /conversations/{conversation_id}/messages`
+
+The messages of a conversation, **oldest first**, paginated (`page_size` defaults to `50`, maximum `100`).
+
+**Requires:** `conversation:read`. **Response** `200 OK`
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "conversation_id": 1,
+      "role": "user",
+      "content": "We need a backend engineer with Python and Postgres.",
+      "tool_calls": null,
+      "tool_call_id": null,
+      "tool_name": null,
+      "model": null,
+      "input_tokens": null,
+      "output_tokens": null,
+      "created": "2026-11-14T12:01:58.083741Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 50,
+  "total_pages": 1
+}
+```
+
+`role` is `user`, `assistant` or `tool`. The other fields are filled only on assistant and tool turns.
+
+**Errors:** `404 Conversation not found`
+
+---
+
+#### `POST /conversations/{conversation_id}/messages`
+
+Send a message and stream the assistant's reply. Your message is saved first, always as a `user` message, then the assistant runs: it may call tools, and every step is saved as a message and streamed as it happens. The only accepted field is `content` (trimmed, 1 to 20,000 characters); anything else, including `role`, is rejected so clients can't forge assistant or tool turns.
+
+The assistant only runs when `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL` are set (see the environment variables in [Development Setup](Development-Setup)); otherwise the stream ends with an `error` event and your message is still saved. The assistant is only offered the tools you hold the permission for.
+
+**Requires:** `conversation:create`.
+
+```json
+{ "content": "What time is it?" }
+```
+
+**Response** `200 OK` (`Content-Type: text/event-stream`). Each event's `data` is a stored message, in the same shape as the [messages list](#get-conversationsconversation_idmessages):
+
+```text
+event: message
+data: {"id": 1, "conversation_id": 1, "role": "user", "content": "What time is it?", "tool_calls": null, ...}
+
+event: tool_call
+data: {"id": 2, "conversation_id": 1, "role": "assistant", "content": null, "tool_calls": [{"id": "call_1", "name": "conversation_current_time", "arguments": {}}], "model": "gemini-3.8-flash", "input_tokens": 41, "output_tokens": 9, ...}
+
+event: tool_result
+data: {"id": 3, "conversation_id": 1, "role": "tool", "content": "{\"now\": \"2026-11-14T21:02:39.261437+00:00\"}", "tool_call_id": "call_1", "tool_name": "conversation_current_time", ...}
+
+event: message
+data: {"id": 4, "conversation_id": 1, "role": "assistant", "content": "It is 14:05 UTC.", "model": "gemini-3.8-flash", "input_tokens": 63, "output_tokens": 8, ...}
+
+event: done
+data: {}
+```
+
+| Event | Meaning |
+| :--- | :--- |
+| `message` | A saved text message: first yours, then the assistant's final answer |
+| `tool_call` | The assistant asked for one or more tools (its message, with `tool_calls`) |
+| `tool_result` | One tool finished; `content` is its JSON result, or `{"error": ...}` if it was refused or failed |
+| `approval_required` | The assistant wants to run a tool with `requires_approval=True`. Stream ends; execution pauses in checkpointer awaiting approval |
+| `done` | The turn ended normally |
+| `error` | The turn ended early: `{"detail": "..."}`. Messages saved so far stay. |
+
+An `error` event's `detail` is one of: `The assistant is not configured.`, `The assistant failed to answer.`, or `Stopped after 6 steps without a final answer.`
+
+Only one turn runs per conversation at a time. These problems are reported as normal HTTP errors, before any stream opens:
+
+| Status | Detail | When |
+| :--- | :--- | :--- |
+| `403` | `Access denied` | You lack `conversation:create` |
+| `404` | `Conversation not found` | Unknown id, or not your conversation |
+| `409` | `The assistant is still answering in this conversation` | Another message in this conversation is still being answered |
+| `422` | `Extra inputs are not permitted` | The body has a field other than `content`, e.g. `role` |
+| `422` | validation error | `content` empty, only whitespace, or over 20,000 characters |
+
+---
+
+#### `POST /conversations/{conversation_id}/approvals`
+
+Resume an assistant turn that paused with `approval_required`. If approved (`"approve": true`), the pending tool executes and the assistant finishes its reply. If rejected (`"approve": false`), the tool execution is skipped and the assistant acknowledges the decision.
+
+**Requires:** `conversation:create`.
+
+```json
+{ "approve": true }
+```
+
+**Response** `200 OK` (`Content-Type: text/event-stream`). Streams the subsequent `tool_result`, `message` (assistant's response), and `done` events. If no approval is pending, yields an `error` event (`No approval is pending for this conversation.`).
+
+| Status | Detail | When |
+| :--- | :--- | :--- |
+| `401` | `Not authenticated` | Missing or invalid Bearer token |
+| `403` | `Access denied` | You lack `conversation:create` |
+| `404` | `Conversation not found` | Unknown id, or not your conversation |
+| `409` | `The assistant is still answering in this conversation` | A concurrent run holds the lock |
+| `422` | validation error | Missing or non-boolean `approve` field, or extra fields |
+
+---
+
+## Recruitment
+
+Job postings and the candidate pipeline. All endpoints require `Authorization: Bearer <access_token>` and act on the organization in `X-Org-Id` (or your own). One feature, `recruitment`, gates every endpoint below — see [permissions](#permissions). More in the [Recruitment](Recruitment) page.
+
+### Job Postings
+
+#### `POST /recruitment/job-postings`
+
+Create a job posting with company details, location, experience, salary, and structured skills.
+
+**Requires:** `recruitment:create`.
+
+```json
+{
+  "company_name": "Acme Corp",
+  "title": "Backend Engineer",
+  "description": "We need a backend engineer to help scale our platform.",
+  "department": "Engineering",
+  "employment_type": "full_time",
+  "work_mode": "hybrid",
+  "location_city": "Pune",
+  "location_region": "Maharashtra",
+  "location_country": "India",
+  "experience_min_years": 3,
+  "experience_max_years": 7,
+  "salary_min": 2000000,
+  "salary_max": 3500000,
+  "salary_currency": "INR",
+  "openings": 2,
+  "status": "open",
+  "skills": [
+    { "name": "Python", "must_have": true, "min_years": 3 },
+    { "name": "PostgreSQL", "must_have": false, "min_years": 2 }
+  ]
+}
+```
+
+Required fields: `company_name`, `title`, and `description`. `skills` is optional (defaults to `[]`) and capped at 50 entries. Defaults: `employment_type` is `full_time`, `work_mode` is `onsite`, `experience_min_years` is `0`, `openings` is `1`, `status` is `open`.
+
+**Response** `201 Created`
+
+```json
+{
+  "id": 1,
+  "company_name": "Acme Corp",
+  "title": "Backend Engineer",
+  "description": "We need a backend engineer to help scale our platform.",
+  "department": "Engineering",
+  "employment_type": "full_time",
+  "work_mode": "hybrid",
+  "location_city": "Pune",
+  "location_region": "Maharashtra",
+  "location_country": "India",
+  "experience_min_years": 3,
+  "experience_max_years": 7,
+  "salary_min": 2000000,
+  "salary_max": 3500000,
+  "salary_currency": "INR",
+  "openings": 2,
+  "status": "open",
+  "created_by_email": "alice@example.com",
+  "skills": [
+    { "id": 1, "name": "Python", "must_have": true, "min_years": 3 },
+    { "id": 2, "name": "PostgreSQL", "must_have": false, "min_years": 2 }
+  ],
+  "created": "2026-11-14T13:08:57.212082Z",
+  "modified": "2026-11-14T13:08:57.212082Z"
+}
+```
+
+**Errors:**
+- `400 Bad Request` (maximum experience below minimum, maximum salary below minimum, or salary specified without currency)
+- `422 Validation Error` (empty/over-long required fields, experience/salary out of bounds, invalid currency pattern, more than 50 skills)
+
+---
+
+#### `GET /recruitment/job-postings`
+
+List job postings for the active organization, ordered oldest first (by id), [paginated](#pagination).
+
+**Requires:** `recruitment:read`. **Response** `200 OK`
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "company_name": "Acme Corp",
+      "title": "Backend Engineer",
+      "...": "same shape as above"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1
+}
+```
+
+---
+
+#### `GET /recruitment/job-postings/{job_posting_id}`
+
+One job posting, same shape as the create response.
+
+**Requires:** `recruitment:read`. **Response** `200 OK`
+
+**Errors:** `404 Job posting not found` (also for another organization's posting)
+
+---
+
+#### `PATCH /recruitment/job-postings/{job_posting_id}`
+
+Update a posting. Omitted fields are unchanged. Nullable fields (`department`, `location_city`, `location_region`, `location_country`, `experience_max_years`, `salary_min`, `salary_max`, `salary_currency`) accept `null` to clear them; for other fields, `null` means "leave it alone". If `skills` is sent, it **replaces the whole list** — send every skill you want kept, or `[]` to clear them all.
+
+**Requires:** `recruitment:update`.
+
+```json
+{
+  "title": "Senior Backend Engineer",
+  "experience_min_years": 5,
+  "skills": [
+    { "name": "Python", "must_have": true, "min_years": 5 },
+    { "name": "PostgreSQL", "must_have": true, "min_years": 3 }
+  ]
+}
+```
+
+**Response** `200 OK`
+
+```json
+{
+  "id": 1,
+  "company_name": "Acme Corp",
+  "title": "Senior Backend Engineer",
+  "description": "We need a backend engineer to help scale our platform.",
+  "department": "Engineering",
+  "employment_type": "full_time",
+  "work_mode": "hybrid",
+  "location_city": "Pune",
+  "location_region": "Maharashtra",
+  "location_country": "India",
+  "experience_min_years": 5,
+  "experience_max_years": 7,
+  "salary_min": 2000000,
+  "salary_max": 3500000,
+  "salary_currency": "INR",
+  "openings": 2,
+  "status": "open",
+  "created_by_email": "alice@example.com",
+  "skills": [
+    { "id": 3, "name": "Python", "must_have": true, "min_years": 5 },
+    { "id": 4, "name": "PostgreSQL", "must_have": true, "min_years": 3 }
+  ],
+  "created": "2026-11-14T13:08:57.212082Z",
+  "modified": "2026-11-14T13:08:57.267677Z"
+}
+```
+
+**Errors:** `400 Bad Request` (invalid range or salary without currency), `404 Job posting not found`, `422 Validation Error`
+
+---
+
+#### `DELETE /recruitment/job-postings/{job_posting_id}`
+
+Delete a posting, its skills, and every candidate selected for it. The resume files themselves (and their `LocalMedia` records) are untouched.
+
+**Requires:** `recruitment:delete`. **Response:** `204 No Content`.
+
+**Errors:** `404 Job posting not found`
+
+---
+
+### Candidates
+
+A candidate is a resume (a [`LocalMedia`](Media) file) selected for one job posting, with a pipeline status: `shortlisted`, `interviewing`, `offered`, `hired`, or `rejected`.
+
+#### `POST /recruitment/job-postings/{job_posting_id}/candidates`
+
+Select a resume for this job posting. Starts at `shortlisted`.
+
+**Requires:** `recruitment:create`.
+
+```json
+{ "local_media_id": 1 }
+```
+
+**Response** `201 Created`
+
+```json
+{
+  "id": 1,
+  "status": "shortlisted",
+  "resume": {
+    "id": 1,
+    "scan_id": 1,
+    "file_name": "alice_cv.pdf",
+    "relative_path": "alice_cv.pdf",
+    "file_path": "/Users/hr/resumes/alice_cv.pdf",
+    "media_type": "pdf",
+    "file_size_bytes": 1048576,
+    "file_modified_at": "2026-11-14T13:08:57.289759Z",
+    "created": "2026-11-14T13:08:57.316238Z"
+  },
+  "selected_by_email": "alice@example.com",
+  "created": "2026-11-14T13:08:57.379563Z",
+  "modified": "2026-11-14T13:08:57.379563Z"
+}
+```
+
+**Errors:**
+
+| Status | Detail | When |
+| :--- | :--- | :--- |
+| `404` | `Job posting not found` | Unknown id, or another organization's posting |
+| `404` | `Resume not found` | Unknown `local_media_id`, or it belongs to another organization |
+| `409` | `This resume is already selected for this job posting` | Selecting the same resume twice for the same posting |
+
+---
+
+#### `GET /recruitment/job-postings/{job_posting_id}/candidates`
+
+List candidates for this posting, [paginated](#pagination), optionally filtered to one status.
+
+**Requires:** `recruitment:read`.
+
+**Query Parameters:** `status` (optional: `shortlisted`, `interviewing`, `offered`, `hired`, or `rejected`), plus `page` / `page_size`.
+
+**Response** `200 OK`
+
+```json
+{
+  "items": [ { "id": 1, "status": "shortlisted", "resume": { "...": "..." }, "...": "same shape as above" } ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1
+}
+```
+
+**Errors:** `404 Job posting not found`
+
+---
+
+#### `PATCH /recruitment/job-postings/{job_posting_id}/candidates/{candidate_id}`
+
+Move a candidate to a new pipeline status. Any status may follow any other — this just records where they stand.
+
+**Requires:** `recruitment:update`.
+
+```json
+{ "status": "interviewing" }
+```
+
+**Response** `200 OK` (the updated candidate, `modified` moved forward).
+
+**Errors:** `404 Job posting not found`, `404 Candidate not found`, `422 Validation Error` (not one of the five status values)
+
+---
+
+#### `DELETE /recruitment/job-postings/{job_posting_id}/candidates/{candidate_id}`
+
+Remove a candidate from the pipeline. The resume file and its `LocalMedia` record are untouched — only the selection is deleted.
+
+**Requires:** `recruitment:delete`. **Response:** `204 No Content`.
+
+**Errors:** `404 Job posting not found`, `404 Candidate not found`
 
 ---
 

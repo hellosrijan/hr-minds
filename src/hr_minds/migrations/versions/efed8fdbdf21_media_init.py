@@ -1,8 +1,8 @@
 """media_init
 
-Revision ID: 35b3fb1adc83
+Revision ID: efed8fdbdf21
 Revises: aa35d3c05483
-Create Date: 2026-11-14 11:01:24.955077
+Create Date: 2026-11-14 16:37:12.618503
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '35b3fb1adc83'
+revision: str = 'efed8fdbdf21'
 down_revision: Union[str, Sequence[str], None] = 'aa35d3c05483'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -50,6 +50,7 @@ def upgrade() -> None:
     sa.Column('media_type', sa.String(length=20), nullable=False),
     sa.Column('file_size_bytes', sa.BigInteger(), nullable=False),
     sa.Column('file_modified_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('last_seen_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('created', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('modified', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

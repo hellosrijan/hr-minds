@@ -9,8 +9,9 @@ src/hr_minds/
 │   ├── config.py           # Pydantic Settings singleton: `settings`
 │   ├── db.py               # async engine, AsyncSessionLocal, Base, TimestampMixin, get_db
 │   ├── features.py         # FeatureSlug enum + FEATURES registry — see [Features](Features)
+│   ├── llm.py              # the model seam: LLM.chat(), LLMReply, get_llm — the only file that knows the provider
 │   ├── logging.py          # setup_logging(): text to stdout, JSON to logs/app.log
-│   └── routers.py          # api_router (prefix /api/v1) — mounts auth and media routers
+│   └── routers.py          # api_router (prefix /api/v1) — mounts auth, media, conversation and recruitment routers
 ├── auth/                   # Authentication & RBAC implementation — see [Authentication](Authentication), [RBAC](RBAC)
 │   ├── router/  schemas/  services/   # each split into auth.py and rbac.py
 │   ├── dependencies.py     # get_current_user, org-scoped require()
@@ -24,8 +25,23 @@ src/hr_minds/
 │   ├── services/           # scanner.py (walk, upsert, SSE scan_stream, startup scan_all), local_media_scan.py
 │   ├── exceptions.py       # LocalMediaScanNotFound (404), MediaFolderInvalid (422)
 │   └── models/             # LocalMediaScan, LocalMedia, MediaType, EXTENSION_MAP
+├── conversation/           # Central chat session storage — see [Conversation](Conversation)
+│   ├── router/             # conversation.py (conversations, messages, streaming POST)
+│   ├── schemas/            # ConversationCreate/Update/Read, MessageCreate/Read
+│   ├── services/           # conversation.py (CRUD, list_messages, add_message, start_run/finish_run)
+│   ├── agents/             # loop.py (LangGraph StateGraph agent loop, run_turn), registry.py (Tool, @tool, registry), tools.py (own tools), poc_loop.py (POC custom loop)
+│   ├── exceptions.py       # ConversationNotFound (404), ConversationBusy (409)
+│   └── models/             # Conversation, Message, MessageRole
+├── recruitment/            # Job postings & candidate pipeline — see [Recruitment](Recruitment)
+│   ├── router/             # job_posting.py, job_candidate.py (nested under a posting)
+│   ├── schemas/            # job_posting.py, job_candidate.py
+│   ├── services/           # job_posting.py, job_candidate.py
+│   ├── exceptions.py       # JobPostingNotFound/JobCandidateNotFound/ResumeNotFound (404), CandidateAlreadySelected (409), InvalidJobPostingRange (400)
+│   └── models/             # JobPosting, JobSkill, JobCandidate, JobCandidateStatus, EmploymentType, WorkMode, JobPostingStatus
+├── utils/
+│   └── pagination.py       # PaginatedResponse[T] envelope for paginated list endpoints
 └── migrations/             # Alembic (async)
-tests/                      # pytest, mirrors src/hr_minds (tests/auth/, tests/media/)
+tests/                      # pytest, mirrors src/hr_minds (tests/auth/, tests/media/, tests/conversation/, tests/recruitment/)
 ```
 
 ## Routing
@@ -39,6 +55,17 @@ To add a module: create `<module>/router.py`, include it in `settings/routers.py
 - **`Base`** — table name is derived from the class name in snake_case (`SelectedCandidate` → `selected_candidate`). Its `MetaData` uses a naming convention for `ix`, `uq`, `ck`, `fk`, `pk` so Alembic gets stable constraint names.
 - **`TimestampMixin`** — adds `id` (PK), `created` and `modified` (timezone-aware, server-set).
 - **`get_db()`** — FastAPI dependency yielding one `AsyncSession` per request. Sessions use `expire_on_commit=False`.
+
+## Pagination (`utils/pagination.py`)
+
+`PaginatedResponse[T]` is the shared response envelope for paginated list endpoints: `items`, `total`, `page` (1-based), `page_size` and `total_pages`. `PaginatedResponse.create(items, total, page, page_size)` fills `total_pages` (`ceil(total / page_size)`, `0` when empty). The wire format is documented in the [API Reference](API-Endpoints#pagination).
+
+To paginate a list endpoint, split the work across the usual layers:
+- **Router:** take `page` and `page_size` as `Annotated[int, Query(...)]` (`ge=1`; `page_size` also `le=100`, default `20`), declare `response_model=PaginatedResponse[YourSchema]`, and return `PaginatedResponse.create(...)`.
+- **Service:** pass `page` and `page_size` through and return `(items, total)`.
+- **Model:** run a `count(*)` for `total`, then the query with a stable `ORDER BY` (end with `id` as a tie-breaker), `.offset((page - 1) * page_size)` and `.limit(page_size)`.
+
+`LocalMedia.list_for_scan` is the reference implementation. `OFFSET` gets slower on very deep pages; at `page_size <= 100` that is fine, and keyset pagination is the upgrade if it ever matters.
 
 ## Features registry (`settings/features.py`)
 

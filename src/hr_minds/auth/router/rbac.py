@@ -76,6 +76,7 @@ async def list_roles(
     membership: Membership = Depends(require(ROLES, "read")),
     db: AsyncSession = Depends(get_db),
 ):
+    """List all predefined and custom roles for the active organization."""
     return await Role.list_for_org(db, membership.org_id)
 
 
@@ -104,6 +105,7 @@ async def get_role(
     membership: Membership = Depends(require(ROLES, "read")),
     db: AsyncSession = Depends(get_db),
 ):
+    """Retrieve details for a single role by ID, including its granted permissions."""
     return await rbac.get_role(db, membership.org_id, role_id)
 
 
@@ -140,6 +142,7 @@ async def list_members(
     membership: Membership = Depends(require(MEMBERS, "read")),
     db: AsyncSession = Depends(get_db),
 ):
+    """List all members of the active organization with their user profiles and roles."""
     return await Membership.list_for_org(db, membership.org_id)
 
 
@@ -166,6 +169,7 @@ async def remove_member(
     membership: Membership = Depends(require(MEMBERS, "delete")),
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    """Remove a member from the organization. The organization owner cannot be removed."""
     await rbac.remove_member(db, membership, user_id)
 
 

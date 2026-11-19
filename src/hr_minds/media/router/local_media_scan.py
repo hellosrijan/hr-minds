@@ -1,13 +1,14 @@
 from collections.abc import AsyncIterable
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hr_minds.auth.dependencies import require
 from hr_minds.auth.models import Membership
 from hr_minds.media.models import LocalMediaScan
-from hr_minds.media.schemas import LocalMediaRead, LocalMediaScanCreate, LocalMediaScanRead
+from hr_minds.media.schemas import LocalMediaRead, LocalMediaScanCreate, LocalMediaScanRead, PaginatedResponse
 from hr_minds.media.services import local_media_scan as local_media_scan_service
 from hr_minds.media.services.scanner import scan_stream
 from hr_minds.settings.db import get_db
@@ -93,17 +94,28 @@ async def list_scans(
     membership: Membership = Depends(require(MEDIA, "read")),
     db: AsyncSession = Depends(get_db),
 ):
+    """List all registered local resume folders for the active organization."""
     scans = await local_media_scan_service.list_for_org(db, membership.org_id)
     return [_to_read(s) for s in scans]
 
 
-@router.get("/{scan_id}/files", response_model=list[LocalMediaRead], summary="List resume files in a folder")
+@router.get(
+    "/{scan_id}/files",
+    response_model=PaginatedResponse[LocalMediaRead],
+    summary="List resume files in a folder (paginated)",
+)
 async def list_scan_files(
     scan_id: int,
+    page: Annotated[int, Query(ge=1, description="Page number (1-based)")] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 20,
     membership: Membership = Depends(require(MEDIA, "read")),
     db: AsyncSession = Depends(get_db),
-):
-    return await local_media_scan_service.list_files(db, membership.org_id, scan_id)
+) -> PaginatedResponse[LocalMediaRead]:
+    """List paginated resume media files discovered within a registered local folder."""
+    items, total = await local_media_scan_service.list_files(
+        db, membership.org_id, scan_id, page=page, page_size=page_size
+    )
+    return PaginatedResponse.create(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.post("/{scan_id}/scan", response_class=EventSourceResponse, summary="Re-scan a local folder")

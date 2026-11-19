@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from hr_minds.utils.pagination import PaginatedResponse
+
 
 class LocalMediaScanCreate(BaseModel):
     """Request body for POST /media/local-scans."""

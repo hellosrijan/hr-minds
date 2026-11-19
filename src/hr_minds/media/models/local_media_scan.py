@@ -49,3 +49,4 @@ class LocalMediaScan(Base, TimestampMixin):
     async def list_for_host(cls, db: AsyncSession, hostname: str) -> list["LocalMediaScan"]:
         """Load all scans across all orgs registered on `hostname` — used by the startup scanner."""
         return list(await db.scalars(select(cls).where(cls.hostname == hostname).order_by(cls.id)))
+    

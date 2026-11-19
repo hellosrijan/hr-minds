@@ -19,7 +19,7 @@ cd hr-minds
 cp .env.example .env
 # Edit .env to set POSTGRES_PASSWORD and SECRET_KEY
 
-# 3. Start PostgreSQL container
+# 3. Start the PostgreSQL and Qdrant (vector database) containers
 docker compose up -d
 
 # 4. Install dependencies
@@ -61,6 +61,14 @@ Purges expired `access_token` records from the database. Run this via a system c
 ```bash
 uv run python -m hr_minds.auth.tasks
 ```
+
+### 4. Interactive API Shell
+`scripts/hr_shell.py` is a single-file, menu-driven terminal UI for trying the running API by hand: create accounts, log in, switch organizations, manage roles (permissions as a checklist) and members, send invitations, scan resume folders with live progress, chat, or send any raw request.
+```bash
+uv run python scripts/hr_shell.py                                 # opens the main menu
+uv run python scripts/hr_shell.py --server http://host:8000       # point it at another API
+```
+Arrow keys move, Enter picks, Ctrl-C goes back one menu (and quits from the main menu). Things like roles, organizations and folders are picked from lists rather than typed as ids. The session (server, token, active org) is saved in `~/.hr_minds_shell.json`, so you stay logged in between runs; passwords are prompted, or read from `HR_PASSWORD` when set. It needs the `dev` dependency group (`questionary`; `rich` comes with FastAPI).
 
 ---
 
@@ -164,4 +172,6 @@ Configured in `src/hr_minds/settings/config.py` with `.env` interpolation:
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Lifespan of access tokens |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | optional | Reserved for future S3 media upload |
 | `AWS_S3_BUCKET_NAME` / `AWS_REGION` | optional | Reserved for future S3 media upload |
-| `OPENAI_API_KEY` | optional | Reserved for Agentic RAG resume filtering |
+| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | optional | OpenAI-compatible chat endpoint for the assistant (OmniRoute, Ollama, or Gemini) |
+| `LLM_MODEL_REASONING` / `LLM_MODEL_FAST` | optional | Per-capability models on the same endpoint (screening; bulk extraction). Empty falls back to `LLM_MODEL` |
+| `QDRANT_URL` | `http://localhost:6333` | Qdrant vector database for resume search (dashboard at `/dashboard`); Docker Compose also reads optional `QDRANT_PORT` |

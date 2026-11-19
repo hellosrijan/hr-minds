@@ -4,6 +4,12 @@ Shared fixtures. Tests that touch the database run against a throwaway
 tables rebuilt per test), so the dev database is never touched.
 """
 
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"pythonjsonlogger.*")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"langsmith.*")
+warnings.filterwarnings("ignore", message=r".*asyncio\.iscoroutinefunction.*", category=DeprecationWarning)
+
 import httpx
 import pytest
 from sqlalchemy import make_url, text
@@ -11,6 +17,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from hr_minds.auth.services.rbac import sync_features
+from hr_minds.conversation.agents.loop import get_chat_model
 from hr_minds.main import app
 from hr_minds.settings.config import settings
 from hr_minds.settings.db import Base, get_db
@@ -22,6 +29,28 @@ PASSWORD = "password123"
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+def pytest_configure(config):
+    config.addinivalue_line("filterwarnings", "ignore::DeprecationWarning:pythonjsonlogger.*:")
+    config.addinivalue_line("filterwarnings", "ignore::DeprecationWarning:langsmith.*:")
+    config.addinivalue_line("filterwarnings", "ignore:.*asyncio\\.iscoroutinefunction.*:DeprecationWarning")
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_sessionfinish(session, exitstatus):
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    if reporter and "warnings" in reporter.stats:
+        reporter.stats["warnings"] = [
+            w for w in reporter.stats["warnings"]
+            if not (
+                "langsmith" in getattr(w, "message", "")
+                or "asyncio.iscoroutinefunction" in getattr(w, "message", "")
+                or "pythonjsonlogger" in getattr(w, "message", "")
+            )
+        ]
+        if not reporter.stats["warnings"]:
+            del reporter.stats["warnings"]
 
 
 @pytest.fixture
@@ -59,6 +88,7 @@ async def client(sessions):
             yield session
 
     app.dependency_overrides[get_db] = test_db
+    app.dependency_overrides[get_chat_model] = lambda: None  # tests never call a real model
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         yield c
     app.dependency_overrides.clear()

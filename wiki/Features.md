@@ -30,7 +30,8 @@ In HR Minds, a **Feature** represents a functional domain of the platform. Featu
 | **RBAC: Members** | `members` | **Active** | Invite organization members and manage member roles | `create`, `read`, `update`, `delete` |
 | **RBAC: Roles** | `roles` | **Active** | Create and manage custom organization roles and permissions | `create`, `read`, `update`, `delete` |
 | **Media** | `media` | **Active** | Scan local folders of candidate resumes | `create`, `read`, `update`, `delete` |
-| **Recruitment** | `recruitment` | *Roadmap* | Candidate pipeline, job postings, and Agentic RAG filtering | `create`, `read`, `update`, `delete` |
+| **Conversation** | `conversation` | **Active** | Chat sessions and messages, private to each user | `create`, `read`, `update`, `delete` |
+| **Recruitment** | `recruitment` | **Active** | Job postings, structured skills, and the candidate pipeline (Agentic RAG matching is still roadmap) | `create`, `read`, `update`, `delete` |
 | **Attendance** | `attendance` | *Roadmap* | Employee check-in, check-out, and shift tracking | `create`, `read`, `update`, `delete` |
 
 ---
@@ -54,3 +55,21 @@ For detailed architecture, model relationships, and SSE protocols:
 
 For complete HTTP request and response specifications:
 ➡️ **[API Reference](API-Endpoints)**
+
+### Conversation (Chat Sessions)
+The **Conversation** feature is the central store for chat sessions. Each conversation is private to the user who started it, inside one organization, and holds an ordered list of messages. Other modules can attach a chat to something of theirs through an optional context, without this module depending on them.
+
+For the data model, privacy rules, and the guard against forged assistant messages:
+➡️ **[Conversation Documentation](Conversation)**
+
+For complete HTTP request and response specifications:
+➡️ **[API Reference](API-Endpoints#conversations)**
+
+### Recruitment (Job Postings & Candidate Pipeline)
+The **Recruitment** feature tracks what an organization is hiring for and who's under consideration. A job posting defines company, location, experience, salary, and structured skills; a candidate links one of its selected resumes (from [Media](Media)) to a pipeline status (`shortlisted`, `interviewing`, `offered`, `hired`, `rejected`). Automated matching against resumes is still on the roadmap — this module is the manual half it will plug into.
+
+For the data model, cascades, and the permissions split between postings and candidates:
+➡️ **[Recruitment Documentation](Recruitment)**
+
+For complete HTTP request and response specifications:
+➡️ **[API Reference](API-Endpoints#recruitment)**

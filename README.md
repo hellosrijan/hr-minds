@@ -37,6 +37,8 @@ For detailed guides, architecture notes, and API references, please check our [W
 - 🧩 **[Features](./wiki/Features.md)**: Feature registry and system capability model
 - 👥 **[RBAC](./wiki/RBAC.md)**: Role-Based Access Control, multi-tenant organizations, and custom roles
 - 📁 **[Media](./wiki/Media.md)**: Local candidate resume scanner, SSE streaming, and file cataloging
+- 💬 **[Conversation](./wiki/Conversation.md)**: Central chat session store, private per user, with messages and optional context
+- 🧑‍💼 **[Recruitment](./wiki/Recruitment.md)**: Job postings, requirements, and the candidate pipeline
 - 🔌 **[API Reference](./wiki/API-Endpoints.md)**: Every `/api/v1` endpoint with request/response examples and errors
 - 🐘 **[Database & Migrations](./wiki/Database-Migrations.md)**: Alembic setup and commands
 - 🚀 **[Development Setup](./wiki/Development-Setup.md)**: Local installation & Postman configuration guide
@@ -80,10 +82,21 @@ hr-minds/
 │       │   ├── router/          # local_media_scan.py (SSE streaming routes)
 │       │   ├── schemas/         # LocalMediaScanCreate, LocalMediaScanRead, LocalMediaRead
 │       │   └── services/        # scanner.py, local_media_scan.py
+│       ├── conversation/        # Central chat session storage
+│       │   ├── models/          # Conversation, Message, MessageRole
+│       │   ├── router/          # conversation.py
+│       │   ├── schemas/         # ConversationCreate/Update/Read, MessageCreate/Read
+│       │   ├── agents/          # tool registry, the conversation's own tools, the assistant loop
+│       │   └── services/        # conversation.py
+│       ├── recruitment/         # Job postings & candidate pipeline
+│       │   ├── models/          # JobPosting, JobRequirement, JobCandidate, JobCandidateStatus
+│       │   ├── router/          # job_posting.py, job_candidate.py
+│       │   ├── schemas/         # job_posting.py, job_candidate.py
+│       │   └── services/        # job_posting.py, job_candidate.py
 │       └── migrations/          # Alembic database migrations
 │           └── env.py           # [Custom] Alembic environment & metadata setup
 ├── tests/                       # pytest (uses an hr_minds_test database)
-├── docker-compose.yml           # PostgreSQL service
+├── docker-compose.yml           # PostgreSQL and Qdrant services
 ├── alembic.ini                  # Alembic configuration
 ├── .env.example                 # Environment variable template
 ├── pyproject.toml               # Project metadata & dependencies
@@ -122,11 +135,13 @@ POSTGRES_DB=hr_minds
 DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
 ```
 
-### 2. Start PostgreSQL
+### 2. Start PostgreSQL and Qdrant
 
 ```bash
 docker compose up -d
 ```
+
+Qdrant (the vector database for resume search) serves its dashboard at <http://localhost:6333/dashboard>.
 
 ### 3. Install Dependencies
 
@@ -191,7 +206,9 @@ All settings are loaded from `.env`:
 | `AWS_SECRET_ACCESS_KEY` | *optional* | AWS secret key |
 | `AWS_S3_BUCKET_NAME` | *optional* | S3 bucket for uploads |
 | `AWS_REGION` | `us-east-1` | AWS region |
-| `OPENAI_API_KEY` | *optional* | OpenAI API key |
+| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | *optional* | OpenAI-compatible chat endpoint for the assistant (OmniRoute, Ollama, Gemini) |
+| `LLM_MODEL_REASONING` / `LLM_MODEL_FAST` | optional | Per-capability models on the same endpoint (screening; bulk extraction). Empty falls back to `LLM_MODEL` |
+| `QDRANT_URL` | `http://localhost:6333` | Qdrant vector database URL |
 
 > ⚠️ Never commit your `.env` file. Use `.env.example` for shared templates.
 
