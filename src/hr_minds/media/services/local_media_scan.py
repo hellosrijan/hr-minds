@@ -53,3 +53,9 @@ async def delete(db: AsyncSession, org_id: int, scan_id: int) -> None:
     scan = await get(db, org_id, scan_id)
     await db.delete(scan)
     await db.commit()
+
+
+async def list_resumes(
+    db: AsyncSession, membership: Membership, page: int = 1, page_size: int = 20
+) -> tuple[list[LocalMedia], int]:
+    return await LocalMedia.list_for_org(db, membership.org_id, page, page_size)

@@ -2,10 +2,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hr_minds.auth.models import Membership
 from hr_minds.media.models import LocalMedia
+from hr_minds.media.schemas import LocalMediaRead
 from hr_minds.recruitment.exceptions import CandidateAlreadySelected, JobCandidateNotFound, ResumeNotFound
 from hr_minds.recruitment.models import JobCandidate, JobCandidateStatus
 from hr_minds.recruitment.schemas import JobCandidateCreate, JobCandidateUpdate
+from hr_minds.recruitment.schemas.job_candidate import JobCandidateRead
 from hr_minds.recruitment.services import job_posting as job_posting_service
+
+
+def to_read(candidate: JobCandidate) -> JobCandidateRead:
+    """A candidate as the API and the assistant's tools return it. Needs resume and selected_by loaded."""
+    return JobCandidateRead(
+        id=candidate.id,
+        status=candidate.status,
+        resume=LocalMediaRead.model_validate(candidate.resume),
+        selected_by_email=candidate.selected_by.email if candidate.selected_by else None,
+        created=candidate.created,
+        modified=candidate.modified,
+    )
 
 
 async def select(
@@ -68,3 +82,4 @@ async def remove(db: AsyncSession, org_id: int, job_posting_id: int, candidate_i
     candidate = await get(db, org_id, job_posting_id, candidate_id)
     await db.delete(candidate)
     await db.commit()
+

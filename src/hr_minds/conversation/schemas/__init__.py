@@ -3,6 +3,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from hr_minds.conversation.schemas.approval import ApprovalDecision, ApprovalRequest
+
 MAX_MESSAGE_CHARS = 20_000
 
 

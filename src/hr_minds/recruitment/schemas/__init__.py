@@ -3,8 +3,8 @@ from hr_minds.recruitment.schemas.job_posting import (
     JobPostingCreate,
     JobPostingRead,
     JobPostingUpdate,
-    JobRequirementCreate,
-    JobRequirementRead,
+    JobSkillCreate,
+    JobSkillRead,
 )
 
 __all__ = [
@@ -14,6 +14,6 @@ __all__ = [
     "JobPostingCreate",
     "JobPostingRead",
     "JobPostingUpdate",
-    "JobRequirementCreate",
-    "JobRequirementRead",
+    "JobSkillCreate",
+    "JobSkillRead",
 ]

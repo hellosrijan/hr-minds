@@ -1,8 +1,9 @@
+import anyio
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hr_minds.auth.models import Membership
-from hr_minds.conversation.exceptions import ConversationNotFound
+from hr_minds.conversation.exceptions import ConversationBusy, ConversationNotFound
 from hr_minds.conversation.models import Conversation, Message, MessageRole
 from hr_minds.conversation.schemas import ConversationCreate, ConversationUpdate
 
@@ -76,3 +77,22 @@ async def add_message(
     await db.refresh(message)
     await db.refresh(conversation)
     return message
+
+
+async def start_run(db: AsyncSession, conversation: Conversation) -> None:
+    """Claim the conversation for one assistant run, or raise ConversationBusy (409)."""
+    if not await Conversation.claim_run(db, conversation.id):
+        raise ConversationBusy()
+
+
+async def finish_run(db: AsyncSession, conversation: Conversation) -> None:
+    """Mark the conversation idle again. Always safe to call, even after a failed run."""
+    conversation_id = conversation.id  # read first: rollback() expires every loaded object
+    # shield: if the client disconnected, the server cancels this request, and that
+    # cancellation would also interrupt the awaits below, so the release would never
+    # happen and the conversation would stay locked until the claim times out.
+    with anyio.CancelScope(shield=True):
+        # Every step of a run is already committed, so this only clears a transaction that a
+        # failed tool left aborted; without it the release below would fail too.
+        await db.rollback()
+        await Conversation.release_run(db, conversation_id)

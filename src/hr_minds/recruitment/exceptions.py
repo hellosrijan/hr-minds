@@ -29,3 +29,8 @@ class ResumeNotFound(RecruitmentError):
 class CandidateAlreadySelected(RecruitmentError):
     status_code = status.HTTP_409_CONFLICT
     detail = "This resume is already selected for this job posting"
+
+
+class InvalidJobPostingRange(RecruitmentError):
+    # Maximum below minimum (experience or salary), or a salary with no currency.
+    detail = "Check the experience and salary ranges: the maximum must not be below the minimum, and a salary needs a currency"

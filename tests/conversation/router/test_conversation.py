@@ -9,6 +9,13 @@ from sqlalchemy import func, select
 from hr_minds.conversation.models import Conversation, Message, MessageRole
 from hr_minds.conversation.services import conversation as conversation_service
 from tests.auth.router.test_rbac import in_org, join, make_role
+from tests.media.router.test_local_media_scan import sse_events
+from hr_minds.conversation.agents import registry
+from hr_minds.conversation.agents.loop import get_chat_model
+from hr_minds.main import app
+from hr_minds.settings.features import FeatureSlug
+from langchain_core.messages import AIMessage
+from pydantic import BaseModel
 
 pytestmark = pytest.mark.anyio
 
@@ -24,8 +31,8 @@ async def start(client, headers, **body) -> dict:
 
 async def say(client, headers, conversation_id, content) -> dict:
     r = await client.post(f"{CONVERSATIONS}/{conversation_id}/messages", json={"content": content}, headers=headers)
-    assert r.status_code == 201, r.text
-    return r.json()
+    assert r.status_code == 200, r.text
+    return sse_events(r.text)[0][1]  # the first event is your saved message
 
 
 async def listed(client, headers, **params) -> dict:
@@ -221,6 +228,7 @@ async def test_permissions_gate_each_endpoint(client, signup):
     assert (await client.patch(f"{CONVERSATIONS}/1", json={"title": "x"}, headers=as_reader)).status_code == 403
     assert (await client.delete(f"{CONVERSATIONS}/1", headers=as_reader)).status_code == 403
     assert (await client.post(f"{CONVERSATIONS}/1/messages", json={"content": "x"}, headers=as_reader)).status_code == 403
+    assert (await client.post(f"{CONVERSATIONS}/1/approvals", json={"approve": True}, headers=as_reader)).status_code == 403
     assert (await client.get(CONVERSATIONS, headers=as_other)).status_code == 403
     assert (await client.get(CONVERSATIONS)).status_code == 401
 
@@ -237,6 +245,9 @@ async def test_input_limits_and_unknown_ids(client, signup):
     assert (await say(client, headers, cid, "x" * 20_000))["content"] == "x" * 20_000
 
     assert (await client.patch(f"{CONVERSATIONS}/{cid}", json={"title": ""}, headers=headers)).status_code == 422
+    assert (await client.post(f"{CONVERSATIONS}/{cid}/approvals", json={}, headers=headers)).status_code == 422
+    assert (await client.post(f"{CONVERSATIONS}/{cid}/approvals", json={"approve": "invalid"}, headers=headers)).status_code == 422
+    assert (await client.post(f"{CONVERSATIONS}/999/approvals", json={"approve": True}, headers=headers)).status_code == 404
     assert (await client.get(f"{CONVERSATIONS}/999", headers=headers)).status_code == 404
 
 
@@ -252,3 +263,136 @@ async def test_deleting_a_conversation_deletes_its_messages(client, signup, db):
     assert await stored() == 2
     assert (await client.delete(f"{CONVERSATIONS}/{cid}", headers=headers)).status_code == 204
     assert await stored() == 0
+
+
+async def test_approvals_require_pending_interrupt(client, signup):
+    headers, _ = await signup("alice")
+    cid = (await start(client, headers))["id"]
+
+    class MockModel:
+        def bind_tools(self, tools):
+            return self
+
+        async def ainvoke(self, messages, **kwargs):
+            return AIMessage(content="idle")
+
+    app.dependency_overrides[get_chat_model] = lambda: MockModel()
+    try:
+        r = await client.post(f"{CONVERSATIONS}/{cid}/approvals", json={"approve": True}, headers=headers)
+        assert r.status_code == 200
+        events = sse_events(r.text)
+        assert events == [("error", {"detail": "No approval is pending for this conversation."})]
+    finally:
+        app.dependency_overrides[get_chat_model] = lambda: None
+
+
+async def test_approvals_interrupt_and_resume_flow(client, signup):
+    headers, _ = await signup("alice")
+    cid = (await start(client, headers))["id"]
+
+    class MockArgs(BaseModel):
+        target: str
+
+    if not registry.get("mock_approval_action"):
+        @registry.tool(
+            name="mock_approval_action",
+            description="Mock action for approval test",
+            args=MockArgs,
+            permission=(FeatureSlug.CONVERSATION, "create"),
+            requires_approval=True,
+        )
+        async def mock_handler(db, membership, args: MockArgs):
+            return {"status": "created", "target": args.target}
+
+    call = {"name": "mock_approval_action", "args": {"target": "job_1"}, "id": "call_1", "type": "tool_call"}
+
+    class MockModel:
+        def __init__(self, responses):
+            self.responses = list(responses)
+
+        def bind_tools(self, tools):
+            return self
+
+        async def ainvoke(self, messages, **kwargs):
+            return self.responses.pop(0)
+
+    model = MockModel([
+        AIMessage(content="", tool_calls=[call]),
+        AIMessage(content="Created successfully."),
+    ])
+
+    app.dependency_overrides[get_chat_model] = lambda: model
+    try:
+        r = await client.post(f"{CONVERSATIONS}/{cid}/messages", json={"content": "Please create job_1"}, headers=headers)
+        assert r.status_code == 200
+        events = sse_events(r.text)
+        assert len(events) == 3
+        assert events[0][0] == "message"
+        assert events[1][0] == "tool_call"
+        assert events[2][0] == "approval_required"
+        assert events[2][1]["tool"] == "mock_approval_action"
+        assert events[2][1]["arguments"] == {"target": "job_1"}
+
+        r = await client.post(f"{CONVERSATIONS}/{cid}/approvals", json={"approve": True}, headers=headers)
+        assert r.status_code == 200
+        resume_events = sse_events(r.text)
+        assert [e[0] for e in resume_events] == ["tool_result", "message", "done"]
+        assert resume_events[0][1]["tool_name"] == "mock_approval_action"
+        assert resume_events[1][1]["content"] == "Created successfully."
+
+        msgs = (await client.get(f"{CONVERSATIONS}/{cid}/messages", headers=headers)).json()["items"]
+        assert [m["role"] for m in msgs] == ["user", "assistant", "tool", "assistant"]
+    finally:
+        app.dependency_overrides[get_chat_model] = lambda: None
+
+
+async def test_approvals_rejection_flow(client, signup):
+    headers, _ = await signup("alice")
+    cid = (await start(client, headers))["id"]
+
+    class MockArgs(BaseModel):
+        target: str
+
+    if not registry.get("mock_approval_action"):
+        @registry.tool(
+            name="mock_approval_action",
+            description="Mock action for approval test",
+            args=MockArgs,
+            permission=(FeatureSlug.CONVERSATION, "create"),
+            requires_approval=True,
+        )
+        async def mock_handler(db, membership, args: MockArgs):
+            return {"status": "created", "target": args.target}
+
+    call = {"name": "mock_approval_action", "args": {"target": "job_2"}, "id": "call_2", "type": "tool_call"}
+
+    class MockModel:
+        def __init__(self, responses):
+            self.responses = list(responses)
+
+        def bind_tools(self, tools):
+            return self
+
+        async def ainvoke(self, messages, **kwargs):
+            return self.responses.pop(0)
+
+    model = MockModel([
+        AIMessage(content="", tool_calls=[call]),
+        AIMessage(content="Action was cancelled."),
+    ])
+
+    app.dependency_overrides[get_chat_model] = lambda: model
+    try:
+        r = await client.post(f"{CONVERSATIONS}/{cid}/messages", json={"content": "Please create job_2"}, headers=headers)
+        assert r.status_code == 200
+        events = sse_events(r.text)
+        assert events[-1][0] == "approval_required"
+
+        r = await client.post(f"{CONVERSATIONS}/{cid}/approvals", json={"approve": False}, headers=headers)
+        assert r.status_code == 200
+        resume_events = sse_events(r.text)
+        assert [e[0] for e in resume_events] == ["tool_result", "message", "done"]
+        assert "rejected" in resume_events[0][1]["content"]
+        assert resume_events[1][1]["content"] == "Action was cancelled."
+    finally:
+        app.dependency_overrides[get_chat_model] = lambda: None

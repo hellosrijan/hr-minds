@@ -38,6 +38,18 @@ class Message(Base, TimestampMixin):
     input_tokens: Mapped[int | None] = mapped_column(Integer)
     output_tokens: Mapped[int | None] = mapped_column(Integer)
 
+
+    @classmethod
+    async def recent(cls, db: AsyncSession, conversation_id: int, limit=40) -> list["Message"]:
+        """The latest `limit` messages, oldest first: the history window sent to the model."""
+        rows = list(
+            await db.scalars(
+                select(cls).where(cls.conversation_id == conversation_id).order_by(cls.id.desc()).limit(limit=limit)
+            )
+        )
+        return rows[::-1]
+
+
     @classmethod
     async def list_for_conversation(
         cls, db: AsyncSession, conversation_id: int, page: int = 1, page_size: int = 50

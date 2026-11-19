@@ -110,13 +110,23 @@ def _detail(r: httpx.Response):
         return r.text
 
 
+def _check(r: httpx.Response, path: str):
+    """Raise ApiError for a failed response. A 401 with a stored token means it expired: forget it."""
+    if r.status_code < 400:
+        return
+    if r.status_code == 401 and session["token"] and not path.endswith(("/auth/token", "/auth/register")):
+        session.update(token=None, email=None, org=None)
+        save_session()
+        raise ApiError(401, "your session has expired, log in again from Account")
+    raise ApiError(r.status_code, _detail(r))
+
+
 def call(method: str, path: str, **kw) -> httpx.Response:
     try:
         r = httpx.request(method, _url(path), headers=_headers(), timeout=30, follow_redirects=True, **kw)
     except httpx.HTTPError as e:
         raise ApiError(0, f"cannot reach {session['url']} ({type(e).__name__}) — is the API running?")
-    if r.status_code >= 400:
-        raise ApiError(r.status_code, _detail(r))
+    _check(r, path)
     return r
 
 
@@ -136,7 +146,7 @@ def stream_scan(method: str, path: str, body=None):
         with httpx.stream(method, _url(path), json=body, headers=_headers(), timeout=None) as r:
             if r.status_code >= 400:
                 r.read()
-                raise ApiError(r.status_code, _detail(r))
+                _check(r, path)
             with Progress(*columns, console=console) as progress:
                 task = progress.add_task("scanning…", total=None)
                 event, summary = None, None
@@ -156,6 +166,32 @@ def stream_scan(method: str, path: str, body=None):
     if summary:
         ok(f"{summary['total']} files ({summary['pdf']} pdf, {summary['document']} doc, "
            f"{summary['image']} img), {summary['removed']} removed")
+
+
+def stream_chat(path: str, body: dict):
+    """Send a chat message and show what the assistant does, step by step, as it happens."""
+    try:
+        with httpx.stream("POST", _url(path), json=body, headers=_headers(), timeout=None) as r:
+            if r.status_code >= 400:
+                r.read()
+                _check(r, path)
+            event = None
+            for line in r.iter_lines():
+                if line.startswith("event:"):
+                    event = line[6:].strip()
+                elif line.startswith("data:"):
+                    data = json.loads(line[5:])
+                    if event == "tool_call":
+                        names = ", ".join(call["name"] for call in data["tool_calls"])
+                        console.print(f"[yellow]  → calling {escape(names)}[/]")
+                    elif event == "tool_result":
+                        console.print(f"[yellow]  ← {escape(data['tool_name'])}: {escape(data['content'])}[/]")
+                    elif event == "message" and data["role"] == "assistant":
+                        console.print(f"[green]assistant[/] │ {escape(data['content'])}")
+                    elif event == "error":
+                        raise ApiError(0, data["detail"])
+    except httpx.HTTPError as e:
+        raise ApiError(0, f"cannot reach {session['url']} ({type(e).__name__}) — is the API running?")
 
 
 # --- output ---
@@ -248,7 +284,10 @@ def register():
 
 
 def logout():
-    call("POST", "/auth/logout")
+    try:
+        call("POST", "/auth/logout")
+    except ApiError:
+        pass  # an expired session can't be logged out on the server, but it still clears here
     session.update(token=None, email=None, org=None)
     save_session()
     ok("logged out")
@@ -483,7 +522,7 @@ def show_messages(chat_id: int):
 
 def chat_menu(chat: dict):
     def say():
-        send("POST", f"/conversations/{chat['id']}/messages", {"content": text("You")})
+        stream_chat(f"/conversations/{chat['id']}/messages", {"content": text("You")})
 
     def rename():
         send("PATCH", f"/conversations/{chat['id']}", {"title": text("New title", default=chat["title"] or "")})

@@ -86,6 +86,7 @@ hr-minds/
 │       │   ├── models/          # Conversation, Message, MessageRole
 │       │   ├── router/          # conversation.py
 │       │   ├── schemas/         # ConversationCreate/Update/Read, MessageCreate/Read
+│       │   ├── agents/          # tool registry, the conversation's own tools, the assistant loop
 │       │   └── services/        # conversation.py
 │       ├── recruitment/         # Job postings & candidate pipeline
 │       │   ├── models/          # JobPosting, JobRequirement, JobCandidate, JobCandidateStatus
@@ -205,7 +206,8 @@ All settings are loaded from `.env`:
 | `AWS_SECRET_ACCESS_KEY` | *optional* | AWS secret key |
 | `AWS_S3_BUCKET_NAME` | *optional* | S3 bucket for uploads |
 | `AWS_REGION` | `us-east-1` | AWS region |
-| `OPENAI_API_KEY` | *optional* | OpenAI API key |
+| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | *optional* | OpenAI-compatible chat endpoint for the assistant (OmniRoute, Ollama, Gemini) |
+| `LLM_MODEL_REASONING` / `LLM_MODEL_FAST` | optional | Per-capability models on the same endpoint (screening; bulk extraction). Empty falls back to `LLM_MODEL` |
 | `QDRANT_URL` | `http://localhost:6333` | Qdrant vector database URL |
 
 > ⚠️ Never commit your `.env` file. Use `.env.example` for shared templates.

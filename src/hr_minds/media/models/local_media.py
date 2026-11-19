@@ -88,3 +88,20 @@ class LocalMedia(Base, TimestampMixin):
     @classmethod
     async def list_all_for_scan(cls, db: AsyncSession, scan_id: int) -> list["LocalMedia"]:
         return list(await db.scalars(select(cls).where(cls.scan_id == scan_id).order_by(cls.relative_path, cls.id)))
+
+
+    @classmethod
+    async def list_for_org(
+        cls, db: AsyncSession, org_id: int, page: int = 1, page_size: int = 20
+    ) -> tuple[list["LocalMedia"], int]:
+        total = (await db.scalar(select(func.count()).select_from(cls).where(cls.org_id == org_id))) or 0
+        items = list(
+            await db.scalars(
+                select(cls)
+                .where(cls.org_id == org_id)
+                .order_by(cls.id)
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        return items, total

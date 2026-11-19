@@ -94,6 +94,7 @@ async def list_scans(
     membership: Membership = Depends(require(MEDIA, "read")),
     db: AsyncSession = Depends(get_db),
 ):
+    """List all registered local resume folders for the active organization."""
     scans = await local_media_scan_service.list_for_org(db, membership.org_id)
     return [_to_read(s) for s in scans]
 
@@ -110,6 +111,7 @@ async def list_scan_files(
     membership: Membership = Depends(require(MEDIA, "read")),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[LocalMediaRead]:
+    """List paginated resume media files discovered within a registered local folder."""
     items, total = await local_media_scan_service.list_files(
         db, membership.org_id, scan_id, page=page, page_size=page_size
     )

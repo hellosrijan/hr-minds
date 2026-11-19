@@ -31,7 +31,7 @@ In HR Minds, a **Feature** represents a functional domain of the platform. Featu
 | **RBAC: Roles** | `roles` | **Active** | Create and manage custom organization roles and permissions | `create`, `read`, `update`, `delete` |
 | **Media** | `media` | **Active** | Scan local folders of candidate resumes | `create`, `read`, `update`, `delete` |
 | **Conversation** | `conversation` | **Active** | Chat sessions and messages, private to each user | `create`, `read`, `update`, `delete` |
-| **Recruitment** | `recruitment` | **Active** | Job postings, requirements, and the candidate pipeline (Agentic RAG matching is still roadmap) | `create`, `read`, `update`, `delete` |
+| **Recruitment** | `recruitment` | **Active** | Job postings, structured skills, and the candidate pipeline (Agentic RAG matching is still roadmap) | `create`, `read`, `update`, `delete` |
 | **Attendance** | `attendance` | *Roadmap* | Employee check-in, check-out, and shift tracking | `create`, `read`, `update`, `delete` |
 
 ---
@@ -66,7 +66,7 @@ For complete HTTP request and response specifications:
 ➡️ **[API Reference](API-Endpoints#conversations)**
 
 ### Recruitment (Job Postings & Candidate Pipeline)
-The **Recruitment** feature tracks what an organization is hiring for and who's under consideration. A job posting has requirements; a candidate links one of its selected resumes (from [Media](Media)) to a pipeline status (`shortlisted`, `interviewing`, `offered`, `hired`, `rejected`). Automated matching against resumes is still on the roadmap — this module is the manual half it will plug into.
+The **Recruitment** feature tracks what an organization is hiring for and who's under consideration. A job posting defines company, location, experience, salary, and structured skills; a candidate links one of its selected resumes (from [Media](Media)) to a pipeline status (`shortlisted`, `interviewing`, `offered`, `hired`, `rejected`). Automated matching against resumes is still on the roadmap — this module is the manual half it will plug into.
 
 For the data model, cascades, and the permissions split between postings and candidates:
 ➡️ **[Recruitment Documentation](Recruitment)**

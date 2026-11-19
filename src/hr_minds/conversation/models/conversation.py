@@ -1,11 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, func, select
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from hr_minds.settings.db import Base, TimestampMixin
 
+
+RUN_TIMEOUT = timedelta(minutes=5)
 
 class Conversation(Base, TimestampMixin):
     """
@@ -28,12 +30,46 @@ class Conversation(Base, TimestampMixin):
     context_id: Mapped[str | None] = mapped_column(String(64))
     # Starts at creation time and moves on every new message; the list sorts by it.
     last_message_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    
+    # Set while the assistant is answering in this conversation; NULL when idle.
+    run_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     @classmethod
     async def get(cls, db: AsyncSession, org_id: int, user_id: int, conversation_id: int) -> "Conversation | None":
         return await db.scalar(
             select(cls).where(cls.org_id == org_id, cls.user_id == user_id, cls.id == conversation_id)
         )
+
+
+    @classmethod
+    async def claim_run(cls, db: AsyncSession, conversation_id: int) -> bool:
+        """
+        Mark the conversation as busy. True if we got it, False if another run holds it.
+        The check and the write are one UPDATE, so two requests can never both win.
+        """
+        result = await db.execute(
+            update(cls)
+            .where(
+                cls.id == conversation_id,
+                or_(cls.run_started_at.is_(None), cls.run_started_at < func.now() - RUN_TIMEOUT),
+            )
+            .values(run_started_at=func.now())
+            .execution_options(synchronize_session=False)
+        )
+        await db.commit()
+        return result.rowcount == 1
+
+    @classmethod
+    async def release_run(cls, db: AsyncSession, conversation_id: int) -> None:
+        """Mark the conversation as idle again."""
+        await db.execute(
+            update(cls)
+            .where(cls.id == conversation_id)
+            .values(run_started_at=None)
+            .execution_options(synchronize_session=False)
+        )
+        await db.commit()
+
 
     @classmethod
     async def list_for_user(

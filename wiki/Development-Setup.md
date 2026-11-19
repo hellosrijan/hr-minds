@@ -172,5 +172,6 @@ Configured in `src/hr_minds/settings/config.py` with `.env` interpolation:
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Lifespan of access tokens |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | optional | Reserved for future S3 media upload |
 | `AWS_S3_BUCKET_NAME` / `AWS_REGION` | optional | Reserved for future S3 media upload |
-| `OPENAI_API_KEY` | optional | Reserved for Agentic RAG resume filtering |
+| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | optional | OpenAI-compatible chat endpoint for the assistant (OmniRoute, Ollama, or Gemini) |
+| `LLM_MODEL_REASONING` / `LLM_MODEL_FAST` | optional | Per-capability models on the same endpoint (screening; bulk extraction). Empty falls back to `LLM_MODEL` |
 | `QDRANT_URL` | `http://localhost:6333` | Qdrant vector database for resume search (dashboard at `/dashboard`); Docker Compose also reads optional `QDRANT_PORT` |

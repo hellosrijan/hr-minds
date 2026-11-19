@@ -13,3 +13,8 @@ class ConversationNotFound(ConversationError):
     # Also what other members get for someone else's conversation: existence isn't leaked.
     status_code = status.HTTP_404_NOT_FOUND
     detail = "Conversation not found"
+
+
+class ConversationBusy(ConversationError):
+    status_code = status.HTTP_409_CONFLICT
+    detail = "The assistant is still answering in this conversation"

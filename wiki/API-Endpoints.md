@@ -72,7 +72,7 @@ Each organization endpoint requires a `feature:action` permission, e.g. `roles:c
 | `roles` | Viewing and editing custom roles |
 | `media` | Registering local resume folders, triggering scans, listing discovered files, deleting scans |
 | `conversation` | Starting, listing, renaming and deleting your chats, and reading and adding their messages |
-| `recruitment` | Job postings and requirements, and selecting, viewing and moving candidates through the pipeline |
+| `recruitment` | Job postings and skills, and selecting, viewing and moving candidates through the pipeline |
 
 Actions are always `create`, `read`, `update`, `delete`. [`GET /features`](#get-features) lists what is currently available.
 
@@ -803,23 +803,77 @@ The messages of a conversation, **oldest first**, paginated (`page_size` default
 
 #### `POST /conversations/{conversation_id}/messages`
 
-Add a message. It is always stored as a `user` message, and the conversation's `last_message_at` moves forward. The only accepted field is `content` (trimmed, 1 to 20,000 characters); anything else, including `role`, is rejected so clients can't forge assistant or tool turns.
+Send a message and stream the assistant's reply. Your message is saved first, always as a `user` message, then the assistant runs: it may call tools, and every step is saved as a message and streamed as it happens. The only accepted field is `content` (trimmed, 1 to 20,000 characters); anything else, including `role`, is rejected so clients can't forge assistant or tool turns.
+
+The assistant only runs when `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL` are set (see the environment variables in [Development Setup](Development-Setup)); otherwise the stream ends with an `error` event and your message is still saved. The assistant is only offered the tools you hold the permission for.
 
 **Requires:** `conversation:create`.
 
 ```json
-{ "content": "We need a backend engineer with Python and Postgres." }
+{ "content": "What time is it?" }
 ```
 
-**Response** `201 Created` (the stored message, same shape as an item above).
+**Response** `200 OK` (`Content-Type: text/event-stream`). Each event's `data` is a stored message, in the same shape as the [messages list](#get-conversationsconversation_idmessages):
 
-**Errors:**
+```text
+event: message
+data: {"id": 1, "conversation_id": 1, "role": "user", "content": "What time is it?", "tool_calls": null, ...}
+
+event: tool_call
+data: {"id": 2, "conversation_id": 1, "role": "assistant", "content": null, "tool_calls": [{"id": "call_1", "name": "conversation_current_time", "arguments": {}}], "model": "gemini-3.8-flash", "input_tokens": 41, "output_tokens": 9, ...}
+
+event: tool_result
+data: {"id": 3, "conversation_id": 1, "role": "tool", "content": "{\"now\": \"2026-11-14T21:02:39.261437+00:00\"}", "tool_call_id": "call_1", "tool_name": "conversation_current_time", ...}
+
+event: message
+data: {"id": 4, "conversation_id": 1, "role": "assistant", "content": "It is 14:05 UTC.", "model": "gemini-3.8-flash", "input_tokens": 63, "output_tokens": 8, ...}
+
+event: done
+data: {}
+```
+
+| Event | Meaning |
+| :--- | :--- |
+| `message` | A saved text message: first yours, then the assistant's final answer |
+| `tool_call` | The assistant asked for one or more tools (its message, with `tool_calls`) |
+| `tool_result` | One tool finished; `content` is its JSON result, or `{"error": ...}` if it was refused or failed |
+| `approval_required` | The assistant wants to run a tool with `requires_approval=True`. Stream ends; execution pauses in checkpointer awaiting approval |
+| `done` | The turn ended normally |
+| `error` | The turn ended early: `{"detail": "..."}`. Messages saved so far stay. |
+
+An `error` event's `detail` is one of: `The assistant is not configured.`, `The assistant failed to answer.`, or `Stopped after 6 steps without a final answer.`
+
+Only one turn runs per conversation at a time. These problems are reported as normal HTTP errors, before any stream opens:
 
 | Status | Detail | When |
 | :--- | :--- | :--- |
+| `403` | `Access denied` | You lack `conversation:create` |
 | `404` | `Conversation not found` | Unknown id, or not your conversation |
+| `409` | `The assistant is still answering in this conversation` | Another message in this conversation is still being answered |
 | `422` | `Extra inputs are not permitted` | The body has a field other than `content`, e.g. `role` |
 | `422` | validation error | `content` empty, only whitespace, or over 20,000 characters |
+
+---
+
+#### `POST /conversations/{conversation_id}/approvals`
+
+Resume an assistant turn that paused with `approval_required`. If approved (`"approve": true`), the pending tool executes and the assistant finishes its reply. If rejected (`"approve": false`), the tool execution is skipped and the assistant acknowledges the decision.
+
+**Requires:** `conversation:create`.
+
+```json
+{ "approve": true }
+```
+
+**Response** `200 OK` (`Content-Type: text/event-stream`). Streams the subsequent `tool_result`, `message` (assistant's response), and `done` events. If no approval is pending, yields an `error` event (`No approval is pending for this conversation.`).
+
+| Status | Detail | When |
+| :--- | :--- | :--- |
+| `401` | `Not authenticated` | Missing or invalid Bearer token |
+| `403` | `Access denied` | You lack `conversation:create` |
+| `404` | `Conversation not found` | Unknown id, or not your conversation |
+| `409` | `The assistant is still answering in this conversation` | A concurrent run holds the lock |
+| `422` | validation error | Missing or non-boolean `approve` field, or extra fields |
 
 ---
 
@@ -831,53 +885,90 @@ Job postings and the candidate pipeline. All endpoints require `Authorization: B
 
 #### `POST /recruitment/job-postings`
 
-Create a job posting with its requirements.
+Create a job posting with company details, location, experience, salary, and structured skills.
 
 **Requires:** `recruitment:create`.
 
 ```json
 {
+  "company_name": "Acme Corp",
   "title": "Backend Engineer",
   "description": "We need a backend engineer to help scale our platform.",
-  "requirements": [
-    { "text": "5+ years of Python", "must_have": true },
-    { "text": "Experience with Kubernetes", "must_have": false }
+  "department": "Engineering",
+  "employment_type": "full_time",
+  "work_mode": "hybrid",
+  "location_city": "Pune",
+  "location_region": "Maharashtra",
+  "location_country": "India",
+  "experience_min_years": 3,
+  "experience_max_years": 7,
+  "salary_min": 2000000,
+  "salary_max": 3500000,
+  "salary_currency": "INR",
+  "openings": 2,
+  "status": "open",
+  "skills": [
+    { "name": "Python", "must_have": true, "min_years": 3 },
+    { "name": "PostgreSQL", "must_have": false, "min_years": 2 }
   ]
 }
 ```
 
-`requirements` is optional (defaults to `[]`) and capped at 50 entries.
+Required fields: `company_name`, `title`, and `description`. `skills` is optional (defaults to `[]`) and capped at 50 entries. Defaults: `employment_type` is `full_time`, `work_mode` is `onsite`, `experience_min_years` is `0`, `openings` is `1`, `status` is `open`.
 
 **Response** `201 Created`
 
 ```json
 {
   "id": 1,
+  "company_name": "Acme Corp",
   "title": "Backend Engineer",
   "description": "We need a backend engineer to help scale our platform.",
+  "department": "Engineering",
+  "employment_type": "full_time",
+  "work_mode": "hybrid",
+  "location_city": "Pune",
+  "location_region": "Maharashtra",
+  "location_country": "India",
+  "experience_min_years": 3,
+  "experience_max_years": 7,
+  "salary_min": 2000000,
+  "salary_max": 3500000,
+  "salary_currency": "INR",
+  "openings": 2,
+  "status": "open",
   "created_by_email": "alice@example.com",
-  "requirements": [
-    { "id": 1, "text": "5+ years of Python", "must_have": true },
-    { "id": 2, "text": "Experience with Kubernetes", "must_have": false }
+  "skills": [
+    { "id": 1, "name": "Python", "must_have": true, "min_years": 3 },
+    { "id": 2, "name": "PostgreSQL", "must_have": false, "min_years": 2 }
   ],
   "created": "2026-11-14T13:08:57.212082Z",
   "modified": "2026-11-14T13:08:57.212082Z"
 }
 ```
 
-**Errors:** `422 Validation Error` (empty/over-long `title` or `description`, more than 50 requirements)
+**Errors:**
+- `400 Bad Request` (maximum experience below minimum, maximum salary below minimum, or salary specified without currency)
+- `422 Validation Error` (empty/over-long required fields, experience/salary out of bounds, invalid currency pattern, more than 50 skills)
 
 ---
 
 #### `GET /recruitment/job-postings`
 
-List job postings for the active organization, [paginated](#pagination).
+List job postings for the active organization, ordered oldest first (by id), [paginated](#pagination).
 
 **Requires:** `recruitment:read`. **Response** `200 OK`
 
 ```json
 {
-  "items": [ { "id": 1, "title": "Backend Engineer", "...": "same shape as above" } ],
+  "items": [
+    {
+      "id": 1,
+      "company_name": "Acme Corp",
+      "title": "Backend Engineer",
+      "...": "same shape as above"
+    }
+  ],
   "total": 1,
   "page": 1,
   "page_size": 20,
@@ -899,12 +990,19 @@ One job posting, same shape as the create response.
 
 #### `PATCH /recruitment/job-postings/{job_posting_id}`
 
-Update a posting. Omitted fields are unchanged. If `requirements` is sent, it **replaces the whole list** — send every requirement you want kept, or `[]` to clear them all.
+Update a posting. Omitted fields are unchanged. Nullable fields (`department`, `location_city`, `location_region`, `location_country`, `experience_max_years`, `salary_min`, `salary_max`, `salary_currency`) accept `null` to clear them; for other fields, `null` means "leave it alone". If `skills` is sent, it **replaces the whole list** — send every skill you want kept, or `[]` to clear them all.
 
 **Requires:** `recruitment:update`.
 
 ```json
-{ "title": "Senior Backend Engineer" }
+{
+  "title": "Senior Backend Engineer",
+  "experience_min_years": 5,
+  "skills": [
+    { "name": "Python", "must_have": true, "min_years": 5 },
+    { "name": "PostgreSQL", "must_have": true, "min_years": 3 }
+  ]
+}
 ```
 
 **Response** `200 OK`
@@ -912,25 +1010,39 @@ Update a posting. Omitted fields are unchanged. If `requirements` is sent, it **
 ```json
 {
   "id": 1,
+  "company_name": "Acme Corp",
   "title": "Senior Backend Engineer",
   "description": "We need a backend engineer to help scale our platform.",
+  "department": "Engineering",
+  "employment_type": "full_time",
+  "work_mode": "hybrid",
+  "location_city": "Pune",
+  "location_region": "Maharashtra",
+  "location_country": "India",
+  "experience_min_years": 5,
+  "experience_max_years": 7,
+  "salary_min": 2000000,
+  "salary_max": 3500000,
+  "salary_currency": "INR",
+  "openings": 2,
+  "status": "open",
   "created_by_email": "alice@example.com",
-  "requirements": [
-    { "id": 1, "text": "5+ years of Python", "must_have": true },
-    { "id": 2, "text": "Experience with Kubernetes", "must_have": false }
+  "skills": [
+    { "id": 3, "name": "Python", "must_have": true, "min_years": 5 },
+    { "id": 4, "name": "PostgreSQL", "must_have": true, "min_years": 3 }
   ],
   "created": "2026-11-14T13:08:57.212082Z",
   "modified": "2026-11-14T13:08:57.267677Z"
 }
 ```
 
-**Errors:** `404 Job posting not found`, `422 Validation Error`
+**Errors:** `400 Bad Request` (invalid range or salary without currency), `404 Job posting not found`, `422 Validation Error`
 
 ---
 
 #### `DELETE /recruitment/job-postings/{job_posting_id}`
 
-Delete a posting, its requirements, and every candidate selected for it. The resume files themselves (and their `LocalMedia` records) are untouched.
+Delete a posting, its skills, and every candidate selected for it. The resume files themselves (and their `LocalMedia` records) are untouched.
 
 **Requires:** `recruitment:delete`. **Response:** `204 No Content`.
 
