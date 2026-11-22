@@ -3,8 +3,8 @@ import re
 from pathlib import Path
 
 import docx
-import pymupdf4llm
 import pytest
+from pypdf import PdfReader
 from scripts.candidate_data import CANDIDATES
 from scripts.generate_test_dataset import generate_all, get_chrome_path
 
@@ -30,6 +30,11 @@ CANONICAL_SYNONYMS = {
 def canonicalize(name: str) -> str:
     cleaned = name.strip().lower()
     return CANONICAL_SYNONYMS.get(cleaned, name.strip())
+
+
+def pdf_text(path: Path | str) -> str:
+    reader = PdfReader(str(path))
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
 @pytest.fixture(scope="session")
@@ -166,7 +171,7 @@ def test_text_matches_metadata_whole_word(resumes_dir):
         path = resumes_dir / fname
 
         if c["format"] == "pdf":
-            text = pymupdf4llm.to_markdown(str(path))
+            text = pdf_text(path)
         else:
             doc = docx.Document(path)
             parts = [p.text for p in doc.paragraphs]
@@ -185,12 +190,12 @@ def test_text_matches_metadata_whole_word(resumes_dir):
 
     # Specific hard cases
     # Candidate 003: Postgres present, PostgreSQL absent
-    c003_text = pymupdf4llm.to_markdown(str(resumes_dir / "resume_003.pdf"))
+    c003_text = pdf_text(resumes_dir / "resume_003.pdf")
     assert re.search(r"\bPostgres\b", c003_text)
     assert not re.search(r"\bPostgreSQL\b", c003_text)
 
     # Candidate 011: ReactJS and TS present, React and TypeScript absent
-    c011_text = pymupdf4llm.to_markdown(str(resumes_dir / "resume_011.pdf"))
+    c011_text = pdf_text(resumes_dir / "resume_011.pdf")
     assert re.search(r"\bReactJS\b", c011_text)
     assert re.search(r"\bTS\b", c011_text)
     assert not re.search(r"\bReact\b", c011_text)
@@ -212,7 +217,7 @@ def test_text_matches_metadata_whole_word(resumes_dir):
 
 def test_pdf_no_header_footer(resumes_dir):
     for f in resumes_dir.glob("*.pdf"):
-        text = pymupdf4llm.to_markdown(str(f))
+        text = pdf_text(f)
         assert "file:///" not in text, f"{f.name} contains 'file:///' header/footer URL"
 
 
