@@ -35,7 +35,7 @@ src/hr_minds/
 ├── recruitment/            # Job postings & candidate pipeline — see [Recruitment](Recruitment)
 │   ├── router/             # job_posting.py, job_candidate.py (nested under a posting)
 │   ├── schemas/            # job_posting.py, job_candidate.py
-│   ├── services/           # job_posting.py, job_candidate.py
+│   ├── services/           # job_posting.py, job_candidate.py, extractor.py (resume text extraction)
 │   ├── exceptions.py       # JobPostingNotFound/JobCandidateNotFound/ResumeNotFound (404), CandidateAlreadySelected (409), InvalidJobPostingRange (400)
 │   └── models/             # JobPosting, JobSkill, JobCandidate, JobCandidateStatus, EmploymentType, WorkMode, JobPostingStatus
 ├── utils/
