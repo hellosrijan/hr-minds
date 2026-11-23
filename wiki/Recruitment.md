@@ -137,4 +137,19 @@ Selecting a resume from another organization is refused the same way a missing p
   - Sending `skills` replaces the entire skill list; sending `[]` removes all skills.
 - Lists are [paginated](API-Endpoints#pagination): postings and candidates default to 20 per page (maximum 100).
 
+---
+
+## 📄 Resume Text Extraction Service
+
+Located at `src/hr_minds/recruitment/services/extractor.py`.
+
+The recruitment service layer provides `extract_text(path: Path) -> str`:
+- **PDF Documents**: Extracted page by page using `pypdf.PdfReader`.
+- **Word Documents (`.docx`)**: Extracted paragraph by paragraph and table by table (including skill tables and role dates) using `python-docx`.
+- **Fault Tolerance**: Returns `""` (empty string) cleanly on corrupted, unscannable, or image-only files so extraction failures are explicit to calling evaluation and indexing pipelines.
+
+This service is shared across the evaluation benchmark harness (`evals/baseline_scorer.py`) and candidate indexing in Qdrant.
+
+---
+
 For the full HTTP specification and real request/response examples, see the [API Reference](API-Endpoints#recruitment).

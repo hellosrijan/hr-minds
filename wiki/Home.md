@@ -30,7 +30,8 @@ HR management and Agentic RAG platform built with FastAPI, async SQLAlchemy, Ale
 | Media (Local folder scanner) | Done — Host-bound directory scanner, SSE streaming, file catalog |
 | Conversation (chat sessions & assistant) | Done — Private sessions and messages, streaming LangGraph assistant with tool calls and approvals |
 | Recruitment (job postings & candidate pipeline) | Done — Postings with structured skills, resumes selected per posting with a pipeline status |
-| Recruitment (Agentic RAG resume filtering & matching) | Planned |
+| Recruitment (Agentic RAG baseline scoring & evaluation) | Done — 30 test resumes (PDF/DOCX), ground truth, recall/precision metrics, reasoning scorer, baseline report |
+| Recruitment (Agentic RAG search & vector indexing) | In Progress — Section chunking, embeddings, and Qdrant integration |
 
 ## License
 
