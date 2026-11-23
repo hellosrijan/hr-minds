@@ -4,8 +4,8 @@ Baseline scoring runner.
 Evaluates 30 fictional resumes against 3 job postings using an OpenAI-compatible
 reasoning model at temperature 0.
 
-Run directly:
-    uv run python evals/baseline_scorer.py
+Run from the repo root:
+    uv run python -m evals.baseline_scorer
 """
 
 import asyncio
@@ -14,7 +14,7 @@ import logging
 import re
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from evals.cache import compute_cache_key, load_cache, save_cache
 from evals.config import (
@@ -29,7 +29,6 @@ from hr_minds.conversation.agents.loop import chat_model
 from hr_minds.recruitment.services.extractor import extract_text
 from hr_minds.settings.llm import model_for
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("baseline_scorer")
 
 
@@ -65,14 +64,7 @@ async def score_resume(
     last_raw = ""
     for attempt in range(2):
         try:
-            # Bind JSON object mode if supported by the provider
-            bound_model = model
-            try:
-                bound_model = model.bind(response_format={"type": "json_object"})
-            except Exception:
-                pass
-
-            response = await bound_model.ainvoke(messages)
+            response = await model.ainvoke(messages)
             last_raw = response.content if hasattr(response, "content") else str(response)
 
             clean_text = clean_json_text(last_raw)
@@ -83,6 +75,7 @@ async def score_resume(
         except Exception as err:
             if attempt == 0:
                 logger.warning(f"Attempt 1 failed ({err}). Retrying once with error feedback...")
+                messages.append(AIMessage(content=last_raw))
                 messages.append(
                     HumanMessage(
                         content=f"Your previous response was not valid JSON or did not match the schema: {err}. Please return only the corrected JSON."
@@ -127,7 +120,8 @@ async def score_all_postings(model_override: Any = None) -> dict[str, Any]:
             resume_text = extract_text(resume_path)
             cache_key = compute_cache_key(resume_text, posting, model_name, PROMPT_VERSION)
 
-            if cache_key in cache:
+            # A cached error is retried: it was a failed call, not an answer.
+            if cache_key in cache and "error" not in cache[cache_key]["result"]:
                 logger.info(f"  [CACHE HIT] {posting_id} :: {file_name}")
                 continue
 
@@ -148,4 +142,5 @@ async def score_all_postings(model_override: Any = None) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     asyncio.run(score_all_postings())

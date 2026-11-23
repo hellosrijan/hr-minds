@@ -4,11 +4,14 @@ Unit tests for Task 13 baseline scoring, extraction, caching, and reporting.
 All tests run completely offline with fake LLMs (no tokens or network calls).
 """
 
+import json
 from pathlib import Path
 
+import docx
 import pytest
 from langchain_core.messages import AIMessage
 
+from evals import baseline_report, baseline_scorer
 from evals.baseline_report import generate_posting_report
 from evals.baseline_scorer import build_scoring_prompt, clean_json_text, score_resume
 from evals.cache import compute_cache_key, load_cache, save_cache
@@ -213,3 +216,72 @@ def test_generate_posting_report():
     assert report["averages"]["partial"] == 60.0
     assert report["averages"]["irrelevant"] == 20.0
     assert report["tier_order_valid"] is True
+
+
+def test_run_report_reads_files_and_ranks(tmp_path, monkeypatch):
+    postings = tmp_path / "postings.json"
+    truth = tmp_path / "truth.json"
+    cache = tmp_path / "cache.json"
+    postings.write_text(json.dumps([{"id": "p1", "title": "Engineer"}]))
+    truth.write_text(json.dumps({"p1": {"strong_files": ["a.pdf"], "partial_files": [], "irrelevant_files": ["b.pdf"]}}))
+    cache.write_text(json.dumps({
+        "k1": {"posting_id": "p1", "file_name": "a.pdf", "result": {"score": 90, "reason": "fit"}},
+        "k2": {"posting_id": "p1", "file_name": "b.pdf", "result": {"score": 10, "reason": "no fit"}},
+    }))
+    monkeypatch.setattr(baseline_report, "POSTINGS_FILE", postings)
+    monkeypatch.setattr(baseline_report, "GROUND_TRUTH_FILE", truth)
+    monkeypatch.setattr(baseline_report, "CACHE_FILE", cache)
+
+    (report,) = baseline_report.run_report()
+
+    assert [c["file_name"] for c in report["ranked_candidates"]] == ["a.pdf", "b.pdf"]
+    assert report["metrics"]["recall@5"] == 1.0
+
+
+# ---------------------------------------------------------------------------
+# 6. Scoring Loop Cache Tests
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def scoring_setup(tmp_path, monkeypatch):
+    """One posting, one tiny DOCX resume, and a cache file in tmp_path."""
+    resumes = tmp_path / "resumes"
+    resumes.mkdir()
+    document = docx.Document()
+    document.add_paragraph("Python and FastAPI engineer with 6 years of experience.")
+    document.save(resumes / "resume_001.docx")
+
+    postings = tmp_path / "postings.json"
+    postings.write_text(json.dumps([SAMPLE_POSTING]))
+    cache_file = tmp_path / "cache.json"
+
+    monkeypatch.setattr(baseline_scorer, "POSTINGS_FILE", postings)
+    monkeypatch.setattr(baseline_scorer, "RESUMES_DIR", resumes)
+    # load_cache/save_cache take their default path when defined, so point them at tmp_path here.
+    monkeypatch.setattr(baseline_scorer, "load_cache", lambda: load_cache(path=cache_file))
+    monkeypatch.setattr(baseline_scorer, "save_cache", lambda cache: save_cache(cache, path=cache_file))
+    return cache_file
+
+
+@pytest.mark.anyio
+async def test_scoring_loop_skips_cached_pairs(scoring_setup):
+    first = ScriptedModel(AIMessage(content=VALID_SCORE_JSON))
+    await baseline_scorer.score_all_postings(model_override=first)
+    assert len(first.sent) == 1
+
+    second = ScriptedModel()
+    cache = await baseline_scorer.score_all_postings(model_override=second)
+    assert second.sent == []  # cache hit, no model call
+    assert next(iter(cache.values()))["result"]["score"] == 85
+
+
+@pytest.mark.anyio
+async def test_scoring_loop_retries_cached_errors(scoring_setup):
+    failing = ScriptedModel(AIMessage(content="not json"), AIMessage(content="still not json"))
+    cache = await baseline_scorer.score_all_postings(model_override=failing)
+    assert "error" in next(iter(cache.values()))["result"]
+
+    fixed = ScriptedModel(AIMessage(content=VALID_SCORE_JSON))
+    cache = await baseline_scorer.score_all_postings(model_override=fixed)
+    assert len(fixed.sent) == 1  # the error was retried, not reused
+    assert next(iter(cache.values()))["result"]["score"] == 85

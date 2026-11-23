@@ -5,8 +5,8 @@ Reads cached scores from data/test_dataset/baseline_scores.json, compares rankin
 against ground_truth.json, computes Recall@5, Recall@10, Precision@5, and validates
 tier score ordering (strong > partial > irrelevant).
 
-Run directly:
-    uv run python evals/baseline_report.py
+Run from the repo root:
+    uv run python -m evals.baseline_report
 """
 
 import json
