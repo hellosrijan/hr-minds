@@ -79,3 +79,6 @@ alembic/versions/__pycache__/
 *.bak
 *.swp
 .cache/
+
+# Ignore test dataset
+data/test_dataset/*
