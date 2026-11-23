@@ -157,12 +157,12 @@ of every change.
 
 - [ ] 16. Search finds the right resumes (RAG)
   - Description: Measure retrieval before building on it.
-  - Goal: Recall@50 reaches a target you set, measured against the baseline ranking.
+  - Goal: Recall@5 and recall@10 on the test set reach the baseline result (both 100%), so search loses none of the strong resumes the baseline ranks on top.
   - Subtasks:
     - [ ] Vector search over the stored chunks
     - [ ] Combine the chunk hits into one score per resume
-    - [ ] Measure recall@50 against the baseline and the expected matches
-    - [ ] Write down the target and the result
+    - [ ] Measure recall@5 and recall@10 against the expected matches (recall@50 means nothing with only 30 resumes: every resume is in the top 50)
+    - [ ] Write down the baseline numbers (recall@5, recall@10, precision@5 and the tier averages from the baseline report) next to the search result
 
 - [ ] 17. Ask questions about resumes (RAG)
   - Description: Ask a question about one resume or the whole pile and get an answer with quotes.
@@ -279,7 +279,7 @@ Scale from about 1,500 resumes to the whole of scan 6 (8,905), then to 100,000.
     - [ ] Retry resumes that failed to process
     - [ ] Show ingestion progress
     - [ ] Measure time and cost per 1,000 resumes screened
-    - [ ] Re-run the agent evals and the recall@50 measurement at full size
+    - [ ] Re-run the agent evals and the recall measurement at full size, using a labeled set large enough for recall@50 to mean something
 
 
 ### Good to have
